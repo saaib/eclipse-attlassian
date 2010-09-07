@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Atlassian Connector for Eclipse" default="all" basedir=".">
+	<property file="${build.config}" />
+	<property file="local.properties" />
+	<import file="scripts/osHelper.xml" />
+	<property file="custom.properties" />
+	<property file="scripts/defaults-all.properties" />
+	<import file="scripts/buildHelper.xml" />
+	
+	<target name="all" depends="clean,build,tests">
+	</target>
+
+	<target name="release" depends="clean,build,pack,generate-metadata-common,generate-metadata">
+	</target>
+
+	<target name="pre-build">
+		<antcall target="install-bundle">
+			<param name="update.feature" value="org.tigris.subversion.clientadapter.feature"/>
+			<param name="update.site" value="${subclipse.site}"/>
+		</antcall>
+		<antcall target="install-bundle">
+			<param name="update.feature" value="org.tigris.subversion.subclipse"/>
+			<param name="update.site" value="${subclipse.site}"/>
+		</antcall>
+		<antcall target="install-bundle">
+			<param name="update.feature" value="org.eclipse.team.svn"/>
+			<param name="update.site" value="${subversive.site}"/>
+		</antcall>
+		
+		<!-- only keep mylyn map that corresponds to current target -->
+		<delete>
+			<fileset dir="${build.home}/${build.target}/maps" includes="mylyn*.map">
+				<exclude name="*${build.target}.map"/>
+			</fileset>
+		</delete>
+
+		<antcall target="pre-build-release"/>
+	</target>
+
+	<target name="pre-build-release" if="build.release">
+		<!-- build against release version of Mylyn -->
+		<delete>
+			<fileset dir="${build.home}/${build.target}/maps" includes="mylyn*.map"/>
+		</delete>
+		<antcall target="install-bundle">
+			<param name="update.feature" value="org.eclipse.mylyn_feature"/>
+			<param name="update.site" value="${mylyn.site}/e${build.target}"/>
+		</antcall>
+		<antcall target="install-bundle">
+			<param name="update.feature" value="org.eclipse.mylyn.jira_feature"/>
+			<param name="update.site" value="${mylyn-extras.site}"/>
+		</antcall>
+	</target>
+	
+	<target name="pack" depends="init">
+		<!-- make sure Eclipse 3.4 is available -->
+		<antcall target="init-3.4"/>
+		
+		<antcall target="for-each-target">
+			<param name="call" value="pack-sites"/>
+		</antcall>
+	</target>
+	
+	<target name="pack-sites" depends="init">
+		<property name="build.site" value="${build.home}/${build.target}/site"/>
+
+		<antcall target="pack-helper">
+			<param name="dir" value="${build.site}"/>
+		</antcall>
+
+		<property name="eclipse.org" value="http://eclipse.unixheads.org"/>
+
+		<antcall target="mirror-helper">
+			<param name="from" value="${eclipse.org}/tools/mylyn/update/e3.4"/>
+			<param name="to" value="${build.site}"/>
+		</antcall>
+		<antcall target="mirror-helper">
+			<param name="from" value="${eclipse.org}/tools/mylyn/update/extras"/>
+			<param name="featureId" value="org.eclipse.mylyn.jira_feature"/>
+			<param name="to" value="${build.site}"/>
+		</antcall>
+
+		<xslt style="mirror.xsl" in="${build.site}/site.xml" out="${build.site}/mirror.xml"/>
+		<move file="${build.site}/mirror.xml" tofile="${build.site}/site.xml"/>
+
+		<copy file="associates-e3.4.xml" todir="${build.site}"/>
+
+		<zip destfile="${build.site}/../e${build.target}-site-all.zip" basedir="${build.site}"/>
+	</target>
+
+	<target name="generate-metadata-common" depends="init">
+		<!-- make sure Eclipse 3.4 is available -->
+		<antcall target="init-3.4"/>
+
+		<!-- create generic site without associate sites -->
+		<property name="site.common.dir" value="${build.home}/3.4/site"/>
+		<copy todir="${build.home}/site">
+			<fileset dir="${site.common.dir}"/>
+		</copy>
+		<antcall target="generate-metadata-helper">
+			<param name="dir" value="${build.home}/site"/>
+			<param name="name" value="${build.publish.name}"/>
+		</antcall>
+	</target>
+		
+	<target name="generate-metadata" depends="init">
+		<!-- make sure Eclipse 3.4 is available -->
+		<antcall target="init-3.4"/>
+		
+		<!-- handle Eclipse version specific sites -->
+		<antcall target="for-each-target">
+			<param name="call" value="generate-metadata-sites"/>
+		</antcall>		
+	</target>
+	
+	<target name="generate-metadata-sites" depends="init">
+  	    <condition property="build.publish.location" value="-e33" else="-e3x"><equals arg1="${build.target}" arg2="3.3"/></condition>
+  	    <condition property="build.publish.name.suffix" value="3.3" else="3.4 and 3.5"><equals arg1="${build.target}" arg2="3.3"/></condition>
+
+		<property name="site.dir" value="${build.home}/${build.target}/site"/>
+		<replace file="${site.dir}/site.xml" token="&lt;site pack200=&quot;true&quot;&gt;" value="&lt;site pack200=&quot;true&quot; associateSitesURL=&quot;${atlassian.site}/${build.publish.postfix}/e${build.target}/associates-${build.publish.postfix}e${build.target}.xml&quot;&gt;">
+		</replace>
+
+		<copy file="associates-${build.publish.postfix}e${build.target}.xml" todir="${site.dir}"/>
+		
+		<antcall target="generate-metadata-helper">
+			<param name="dir" value="${site.dir}"/>
+			<param name="name" value="${build.publish.name} ${build.publish.name.suffix}"/>
+		</antcall>
+	</target>
+
+	<target name="publish" depends="init">
+		<antcall target="init-3.4"/>
+
+		<fail message="Required property build.publish.user is not set" unless="build.publish.user"/>
+		<fail message="Required property build.publish.password is not set" unless="build.publish.password"/>
+		<fail message="Required property build.publish.host is not set" unless="build.publish.host"/>
+		<fail message="Required property build.publish.path is not set" unless="build.publish.path"/>
+		
+		<antcall target="for-each-target">
+			<param name="call" value="publish-helper"/>
+		</antcall> 
+
+		<sshexec host="${build.publish.host}" keyfile="${build.publish.keyfile}" username="${build.publish.user}" 
+			trust="true" command="cp -fR &quot;${build.publish.path}/${build.publish.postfix}/${version}/&quot;* &quot;${build.publish.path}/${build.publish.postfix}&quot;" timeout="5000"
+			knownhosts="tools/known_hosts"/>
+	</target>
+
+	<target name="publish-helper">
+		<echo message="Uploading ${version}.${qualifier} to /${build.publish.postfix}" />
+		<property name="publish.name" value="e${build.target}"/>
+		<property name="publish.path" value="${build.publish.path}/${build.publish.postfix}/${version}"/>
+		
+		<sshexec host="${build.publish.host}" keyfile="${build.publish.keyfile}" username="${build.publish.user}" 
+			trust="true" command="mkdir -p &quot;${publish.path}/${publish.name}.tmp&quot;" timeout="5000"
+			knownhosts="tools/known_hosts"/>
+
+		<scp todir="${build.publish.user}@${build.publish.host}:${publish.path}/${publish.name}.tmp" 
+			keyfile="${build.publish.keyfile}" passphrase="${build.publish.passphrase}" trust="true" verbose="true">
+			<fileset dir="${build.home}/${build.target}/site"/>
+		</scp>
+		
+		<!-- copy zipped site also -->
+		<scp remoteTofile="${build.publish.user}@${build.publish.host}:${publish.path}/${publish.name}-site-all.zip.tmp"
+		   	localFile="${build.home}/${build.target}/${publish.name}-site-all.zip" 
+			keyfile="${build.publish.keyfile}" passphrase="${build.publish.passphrase}" trust="true" verbose="true">
+		</scp>
+		
+		<sshexec host="${build.publish.host}" keyfile="${build.publish.keyfile}" username="${build.publish.user}" 
+			trust="true" command="rm -rf &quot;${publish.path}/${publish.name}&quot;; mv &quot;${publish.path}/${publish.name}.tmp&quot; &quot;${publish.path}/${publish.name}&quot;" timeout="5000"
+			knownhosts="tools/known_hosts"/>
+
+		<sshexec host="${build.publish.host}" keyfile="${build.publish.keyfile}" username="${build.publish.user}" 
+			trust="true" command="mv &quot;${publish.path}/${publish.name}-site-all.zip.tmp&quot; &quot;${publish.path}/${publish.name}-site-all.zip&quot;" timeout="5000"
+			knownhosts="tools/known_hosts"/>
+	</target>
+
+	<target name="init-3.3">
+		<antcall target="get-build-dependencies-helper">
+			<param name="build.target" value="3.3"/>
+			<param name="eclipse.sdk.url" value="${eclipse.url.3.3}"/>
+			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.3}"/>
+		</antcall>
+	</target>
+
+	<target name="init-3.4">
+		<antcall target="get-build-dependencies-helper">
+			<param name="build.target" value="3.4"/>
+			<param name="eclipse.sdk.url" value="${eclipse.url.3.4}"/>
+			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.4}"/>
+		</antcall>
+	</target>
+
+	<target name="init-3.5">
+		<antcall target="get-build-dependencies-helper">
+			<param name="build.target" value="3.5"/>
+			<param name="eclipse.sdk.url" value="${eclipse.url.3.5}"/>
+			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.5}"/>
+		</antcall>
+	</target>
+
+	<target name="mirror">
+		<antcall target="init-3.4"/>
+		
+		<property name="eclipse.org" value="http://eclipse.unixheads.org"/>
+		<property name="to" value="${build.home}/mirror/e3.4"/>
+		<mkdir dir="${to}"/>
+
+		<antcall target="mirror-helper">
+			<param name="from" value="${eclipse.org}/tools/mylyn/update/e3.4"/>
+		</antcall>
+		<antcall target="mirror-helper">
+			<param name="from" value="${eclipse.org}/tools/mylyn/update/extras"/>
+			<param name="featureId" value="org.eclipse.mylyn.jira_feature"/>
+		</antcall>
+		<!--
+		<antcall target="mirror-helper">
+			<param name="from" value="http://subclipse.tigris.org/update_1.4.x"/>
+			<param name="featureId" value="org.tigris.subversion.subclipse.mylyn"/>
+		</antcall>
+		<antcall target="mirror-helper">
+			<param name="from" value="http://subclipse.tigris.org/update_1.4.x"/>
+			<param name="featureId" value="org.tigris.subversion.subclipse"/>
+		</antcall>
+		<antcall target="mirror-helper">
+			<param name="from" value="http://subclipse.tigris.org/update_1.4.x"/>
+			<param name="featureId" value="org.tigris.subversion.clientadapter.feature"/>
+		</antcall>
+		<antcall target="mirror-helper">
+			<param name="from" value="http://subclipse.tigris.org/update_1.4.x"/>
+			<param name="featureId" value="org.tigris.subversion.clientadapter.svnkit.feature"/>
+		</antcall>
+		-->
+		<antcall target="mirror-helper">
+			<param name="from" value="http://update.atlassian.com/atlassian-eclipse-plugin"/>
+		</antcall>
+		
+		<xslt style="mirror.xsl" in="${to}/site.xml" out="${to}/mirror.xml"/>
+		<move file="${to}/mirror.xml" tofile="${to}/site.xml"/>
+
+		<copy file="associates-e3.4.xml" todir="${to}"/>
+		
+		<antcall target="generate-metadata-helper">
+			<param name="dir" value="${to}"/>
+			<param name="name" value="${build.publish.name} 3.4 and 3.5"/>
+		</antcall>
+	</target>
+
+	<target name="generate-clover-report" depends="init">
+		<antcall target="for-each-target">
+			<param name="call" value="clover-report-helper"/>
+		</antcall>
+	</target>
+
+
+	<target name="clover-report-helper">
+		
+			<!-- Set up Clover location and instrumentation path -->
+			<taskdef resource="cloverlib.xml" classpath="${basedir}/lib/clover.jar"/>
+		
+			<!-- 
+				Produce coverage analysis docs using Clover 
+			-->
+			<clover-report failonerror="false" initstring="${build.home}/${build.target}/.clover/coverage.db">
+		       <current outfile="${build.home}/${build.target}/clover.xml">
+		          <format type="xml"/>
+		       </current>
+			</clover-report>
+		<clover-report failonerror="false" initstring="${build.home}/${build.target}/.clover/coverage.db">
+	       <current outfile="${build.home}/${build.target}/clover-html-report">
+	          <format type="html"/>
+	       </current>
+		</clover-report>
+		</target>	
+
+	<target name="composite">
+		<antcall target="init-3.5"/>
+		<antcall target="ant-helper">
+			<param name="buildfile" value="${basedir}/build.xml"/>
+			<param name="targets" value="generate-composite-site"/>
+			<param name="extraArgs" value="-Dlocation=file://${build.home}/composite-site"/>
+		</antcall>
+	</target>
+
+	<target name="generate-composite-site">
+		<p2.composite.repository>
+			<repository location="${location}" name="Mirror" />
+			<add>
+				<repository location="http://update.atlassian.com/atlassian-eclipse-plugin/"/>
+				<repository location="http://download.eclipse.org/tools/mylyn/update/e3.4/"/>
+				<repository location="http://download.eclipse.org/tools/mylyn/update/extras/"/>
+				<repository location="http://subclipse.tigris.org/update_1.6.x/"/>
+				<repository location="http://download.eclipse.org/technology/subversive/0.7/update-site/"/>
+				<!--<repository location="http://update.atlassian.com/eclipse/clover/"/>-->
+			</add>
+		</p2.composite.repository>
+	</target>
+
+</project>
