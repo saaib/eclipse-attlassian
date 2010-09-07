@@ -1,0 +1,28 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Atlassian Connector for Eclipse Perforce Core
+Bundle-SymbolicName: com.atlassian.connector.eclipse.perforce.core;singleton:=true
+Bundle-Version: 2.2.0.qualifier
+Bundle-Activator: com.atlassian.connector.eclipse.internal.perforce.core.AtlassianPerforceCorePlugin
+Bundle-Vendor: Atlassian
+Bundle-RequiredExecutionEnvironment: J2SE-1.5
+Bundle-ActivationPolicy: lazy
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.mylyn.commons.core,
+ org.eclipse.team.core,
+ org.eclipse.core.filesystem,
+ org.eclipse.core.resources,
+ org.eclipse.compare,
+ com.atlassian.connector.commons,
+ org.eclipse.core.runtime,
+ org.eclipse.mylyn.commons.net,
+ org.apache.commons.io,
+ org.eclipse.ui,
+ org.eclipse.jface,
+ org.jetbrains.annotations;resolution:=optional,
+ com.perforce.p4api,
+ com.perforce.p4wsad,
+ com.perforce.p4java,
+ com.perforce.team.core
+Export-Package: com.atlassian.connector.eclipse.internal.perforce.core;x-friends:="com.atlassian.connector.eclipse.perforce.ui"
+
