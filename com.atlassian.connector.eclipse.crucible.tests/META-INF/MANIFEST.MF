@@ -1,0 +1,27 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Atlassian Connector for Eclipse Crucible Tests
+Bundle-SymbolicName: com.atlassian.connector.eclipse.crucible.tests;singleton:=true
+Bundle-Version: 0.0.0
+Bundle-Vendor: Atlassian
+Require-Bundle: org.junit,
+ com.atlassian.connector.eclipse.crucible.core,
+ org.eclipse.mylyn.tasks.core,
+ com.atlassian.connector.commons,
+ org.eclipse.core.runtime,
+ com.atlassian.connector.eclipse.crucible.ui,
+ org.eclipse.mylyn.tasks.ui,
+ org.eclipse.jface,
+ org.eclipse.mylyn.commons.net,
+ com.atlassian.connector.commons.tests.dependencies,
+ com.atlassian.connector.eclipse.ui,
+ org.eclipse.jface.text,
+ com.atlassian.connector.eclipse.core,
+ org.eclipse.ui
+Bundle-RequiredExecutionEnvironment: J2SE-1.5
+Export-Package: com.atlassian.connector.eclipse.internal.crucible.core;x-internal:=true,
+ com.atlassian.connector.eclipse.internal.crucible.core.configuration;x-internal:=true,
+ com.atlassian.connector.eclipse.internal.crucible.tests;x-internal:=true,
+ com.atlassian.connector.eclipse.internal.crucible.ui;x-internal:=true,
+ com.atlassian.connector.eclipse.internal.crucible.ui.commons;x-internal:=true,
+ com.atlassian.connector.eclipse.internal.crucible.ui.operations;x-internal:=true
