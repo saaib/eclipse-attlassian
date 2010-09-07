@@ -46,8 +46,8 @@ import org.apache.commons.httpclient.methods.multipart.StringPart;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.mylyn.commons.net.HtmlStreamTokenizer;
-import org.eclipse.mylyn.commons.net.HtmlStreamTokenizer.Token;
 import org.eclipse.mylyn.commons.net.HtmlTag;
+import org.eclipse.mylyn.commons.net.HtmlStreamTokenizer.Token;
 
 import com.atlassian.connector.eclipse.internal.jira.core.JiraFieldType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Attachment;
@@ -216,7 +216,7 @@ public class JiraWebClient {
 				post.setRequestHeader("Content-Type", getContentType(monitor)); //$NON-NLS-1$
 				prepareSecurityToken(post);
 
-				post.addParameter("assignee", getAssigneeParam(server, issue, assigneeType, user)); //$NON-NLS-1$
+				post.addParameter("assignee", client.getAssigneeParam(issue, assigneeType, user)); //$NON-NLS-1$
 
 				if (comment != null) {
 					post.addParameter("comment", comment); //$NON-NLS-1$
@@ -614,23 +614,6 @@ public class JiraWebClient {
 		return serverInfo;
 	}
 
-	private String getAssigneeParam(JiraClient server, JiraIssue issue, int assigneeType, String user) {
-		switch (assigneeType) {
-		case JiraClient.ASSIGNEE_CURRENT:
-			return issue.getAssignee();
-		case JiraClient.ASSIGNEE_DEFAULT:
-			return "-1"; //$NON-NLS-1$
-		case JiraClient.ASSIGNEE_NONE:
-			return ""; //$NON-NLS-1$
-		case JiraClient.ASSIGNEE_SELF:
-			return server.getUserName();
-		case JiraClient.ASSIGNEE_USER:
-			return user;
-		default:
-			return user;
-		}
-	}
-
 	protected void handleErrorMessage(HttpMethodBase method) throws JiraException {
 		try {
 			String response = method.getResponseBodyAsString();
@@ -722,9 +705,9 @@ public class JiraWebClient {
 						Date date = JiraRssHandler.getDateTimeFormat().parse(value);
 						DateFormat format;
 						if (JiraFieldType.DATE.getKey().equals(key)) {
-							format = client.getConfiguration().getDateFormat();
+							format = client.getLocalConfiguration().getDateFormat();
 						} else {
-							format = client.getConfiguration().getDateTimeFormat();
+							format = client.getLocalConfiguration().getDateTimeFormat();
 						}
 						value = format.format(date);
 					} catch (ParseException e) {
@@ -740,7 +723,7 @@ public class JiraWebClient {
 		for (String field : fields) {
 			if ("duedate".equals(field)) { //$NON-NLS-1$
 				if (issue.getDue() != null) {
-					DateFormat format = client.getConfiguration().getDateFormat();
+					DateFormat format = client.getLocalConfiguration().getDateFormat();
 					post.addParameter("duedate", format.format(issue.getDue())); //$NON-NLS-1$
 				} else {
 					post.addParameter("duedate", ""); //$NON-NLS-1$ //$NON-NLS-2$

@@ -2,7 +2,7 @@
 <feature
       id="com.atlassian.connector.eclipse.monitor"
       label="%featureName"
-      version="2.2.0.qualifier"
+      version="2.3.0.qualifier"
       provider-name="%providerName"
       plugin="com.atlassian.connector.eclipse.branding.ui">
 
@@ -17,14 +17,6 @@
    <license url="license.html">
       %license
    </license>
-
-   <url>
-      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
-   </url>
-
-   <includes
-         id="com.atlassian.connector.eclipse.commons"
-         version="0.0.0"/>
 
    <requires>
       <import plugin="org.eclipse.ui"/>
@@ -47,9 +39,16 @@
       <import plugin="org.eclipse.mylyn.commons.ui" version="3.2.0" match="compatible"/>
       <import feature="org.eclipse.mylyn_feature" version="3.2.0.I20090529" match="compatible"/>
    </requires>
-
+	
+	<plugin
+         id="com.atlassian.connector.eclipse.monitor.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+         
    <plugin
-         id="com.atlassian.connector.eclipse.monitor.usage"
+         id="com.atlassian.connector.eclipse.monitor.ui"
          download-size="0"
          install-size="0"
          version="0.0.0"

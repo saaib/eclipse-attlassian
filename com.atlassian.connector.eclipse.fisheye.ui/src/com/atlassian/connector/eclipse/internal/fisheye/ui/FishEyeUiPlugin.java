@@ -1,5 +1,12 @@
 package com.atlassian.connector.eclipse.internal.fisheye.ui;
 
+import com.atlassian.connector.eclipse.internal.branding.ui.RuntimeUtil;
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
+import com.atlassian.connector.eclipse.internal.fisheye.core.FishEyeCorePlugin;
+
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
@@ -30,8 +37,8 @@ public class FishEyeUiPlugin extends AbstractUIPlugin {
 		super.start(context);
 		plugin = this;
 
-		/* PLE-1120
-		if (!getPreferenceStore().getBoolean(FishEyeConstants.PREFERENCE_SECURE_STORAGE_MIGRATED)) {
+		if (!getPreferenceStore().getBoolean(FishEyeConstants.PREFERENCE_SECURE_STORAGE_MIGRATED)
+				&& !RuntimeUtil.suppressConfigurationWizards()) {
 			Job migrateJob = new MigrateToSecureStorageJob(FishEyeCorePlugin.CONNECTOR_KIND);
 			migrateJob.addJobChangeListener(new JobChangeAdapter() {
 				@Override
@@ -40,7 +47,7 @@ public class FishEyeUiPlugin extends AbstractUIPlugin {
 				}
 			});
 			migrateJob.schedule();
-		}*/
+		}
 
 	}
 

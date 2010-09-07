@@ -194,7 +194,7 @@ public class JiraTestUtil {
 		Credentials credentials = TestUtil.readCredentials(level);
 		TaskRepository repository = new TaskRepository(JiraCorePlugin.CONNECTOR_KIND, url);
 		repository.setCredentials(AuthenticationType.REPOSITORY, new AuthenticationCredentials(credentials.username,
-				credentials.password), false);
+				credentials.password), true);
 
 		manager.addRepository(repository);
 		return repository;

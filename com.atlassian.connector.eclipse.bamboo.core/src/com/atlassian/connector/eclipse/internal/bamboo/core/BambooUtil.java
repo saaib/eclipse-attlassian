@@ -33,6 +33,8 @@ public final class BambooUtil {
 
 	private static final String KEY_SUBSCRIBED_PLANS = "com.atlassian.connector.eclipse.bamboo.subscribedPlans";
 
+	public static final String KEY_USE_FAVOURITES = "com.atlassian.connector.eclipse.bamboo.useFavourites";
+
 	private BambooUtil() {
 	}
 
@@ -110,5 +112,16 @@ public final class BambooUtil {
 				}
 			}
 		}
+	}
+
+	public static boolean isUseFavourites(TaskRepository taskRepository) {
+		if (taskRepository == null) {
+			return false;
+		}
+		return Boolean.valueOf(taskRepository.getProperty(KEY_USE_FAVOURITES));
+	}
+
+	public static void setUseFavourites(TaskRepository taskRepository, boolean useFavourite) {
+		taskRepository.setProperty(BambooUtil.KEY_USE_FAVOURITES, Boolean.toString(useFavourite));
 	}
 }

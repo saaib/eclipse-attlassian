@@ -65,13 +65,14 @@ import org.eclipse.ui.forms.widgets.ExpandableComposite;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Hyperlink;
 
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
 import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.RemoteApiLockedDialog;
 import com.atlassian.connector.eclipse.internal.jira.core.JiraClientFactory;
 import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
 import com.atlassian.connector.eclipse.internal.jira.core.model.ServerInfo;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraAuthenticationException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraCaptchaRequiredException;
-import com.atlassian.connector.eclipse.internal.jira.core.service.JiraConfiguration;
+import com.atlassian.connector.eclipse.internal.jira.core.service.JiraLocalConfiguration;
 import com.atlassian.connector.eclipse.internal.jira.core.util.JiraUtil;
 import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiPlugin;
 
@@ -99,7 +100,7 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 
 	private FormToolkit toolkit;
 
-	private JiraConfiguration configuration;
+	private JiraLocalConfiguration configuration;
 
 	private Text dateTimePatternText;
 
@@ -112,6 +113,8 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 	private Button limitSearchResultsButton;
 
 	private Button followRedirectsButton;
+
+	private Button useServerSettingsButton;
 
 	public JiraRepositorySettingsPage(TaskRepository taskRepository) {
 		super(Messages.JiraRepositorySettingsPage_JIRA_Repository_Settings,
@@ -131,9 +134,9 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 	@Override
 	protected void createAdditionalControls(Composite parent) {
 		if (repository != null) {
-			configuration = JiraUtil.getConfiguration(repository);
+			configuration = JiraUtil.getLocalConfiguration(repository);
 		} else {
-			configuration = new JiraConfiguration();
+			configuration = new JiraLocalConfiguration();
 		}
 
 		toolkit = new FormToolkit(parent.getDisplay());
@@ -180,29 +183,51 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 
 		label = new Label(parent, SWT.NONE);
 		label.setText(Messages.JiraRepositorySettingsPage_Time_tracking);
+		GridDataFactory.fillDefaults().align(SWT.BEGINNING, SWT.TOP).applyTo(label);
 
 		Composite timeTrackingComposite = new Composite(parent, SWT.NONE);
 		timeTrackingComposite.setLayout(GridLayoutFactory.fillDefaults().numColumns(2).create());
 
+//		useServerSettingsButton = new Button(timeTrackingComposite, SWT.CHECK | SWT.LEFT);
+//		useServerSettingsButton.setText(Messages.JiraRepositorySettingsPage_use_server_settings);
+//		useServerSettingsButton.setToolTipText(Messages.JiraRepositorySettingsPage_Administration_priviliges_required);
+//		GridDataFactory.fillDefaults().span(2, 1).applyTo(useServerSettingsButton);
+
 		workDaysPerWeekSpinner = new Spinner(timeTrackingComposite, SWT.BORDER | SWT.RIGHT);
-		workDaysPerWeekSpinner.setValues(JiraConfiguration.DEFAULT_WORK_DAYS_PER_WEEK, 1, 7, 0, 1, 1);
-		if (repository != null) {
-			workDaysPerWeekSpinner.setSelection(JiraUtil.getWorkDaysPerWeek(repository));
-		}
+		workDaysPerWeekSpinner.setValues(JiraLocalConfiguration.DEFAULT_WORK_DAYS_PER_WEEK, 1, 7, 0, 1, 1);
+
 		GridDataFactory.fillDefaults().align(SWT.FILL, SWT.TOP).applyTo(workDaysPerWeekSpinner);
 		label = new Label(timeTrackingComposite, SWT.NONE);
 		label.setText(Messages.JiraRepositorySettingsPage_working_days_per_week);
 
 		workHoursPerDaySpinner = new Spinner(timeTrackingComposite, SWT.BORDER);
-		workHoursPerDaySpinner.setValues(JiraConfiguration.DEFAULT_WORK_HOURS_PER_DAY, 1, 24, 0, 1, 1);
-		if (repository != null) {
-			workHoursPerDaySpinner.setSelection(JiraUtil.getWorkHoursPerDay(repository));
-		}
+		workHoursPerDaySpinner.setValues(JiraLocalConfiguration.DEFAULT_WORK_HOURS_PER_DAY, 1, 24, 0, 1, 1);
+
 		label = new Label(timeTrackingComposite, SWT.NONE);
 		label.setText(Messages.JiraRepositorySettingsPage_working_hours_per_day);
 
 		label = new Label(parent, SWT.NONE);
 		label.setText(Messages.JiraRepositorySettingsPage_Search_results);
+
+		if (repository != null) {
+
+			if (JiraUtil.isUseServerTimeTrackingSettings(repository)) {
+				useServerSettingsButton.setSelection(true);
+				workDaysPerWeekSpinner.setEnabled(false);
+				workHoursPerDaySpinner.setEnabled(false);
+			}
+			workDaysPerWeekSpinner.setSelection(JiraUtil.getWorkDaysPerWeekLocal(repository));
+			workHoursPerDaySpinner.setSelection(JiraUtil.getWorkHoursPerDayLocal(repository));
+
+		}
+
+//		useServerSettingsButton.addSelectionListener(new SelectionAdapter() {
+//			@Override
+//			public void widgetSelected(SelectionEvent e) {
+//				workDaysPerWeekSpinner.setEnabled(!useServerSettingsButton.getSelection());
+//				workHoursPerDaySpinner.setEnabled(!useServerSettingsButton.getSelection());
+//			}
+//		});
 
 		Composite maxSearchResultsComposite = new Composite(parent, SWT.NONE);
 		maxSearchResultsComposite.setLayout(GridLayoutFactory.fillDefaults().numColumns(2).create());
@@ -304,9 +329,9 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 		hyperlink.addHyperlinkListener(new HyperlinkAdapter() {
 			@Override
 			public void linkActivated(HyperlinkEvent e) {
-				datePatternText.setText(JiraConfiguration.DEFAULT_DATE_PATTERN);
-				dateTimePatternText.setText(JiraConfiguration.DEFAULT_DATE_TIME_PATTERN);
-				localeCombo.setText(JiraConfiguration.DEFAULT_LOCALE.getDisplayName());
+				datePatternText.setText(JiraLocalConfiguration.DEFAULT_DATE_PATTERN);
+				dateTimePatternText.setText(JiraLocalConfiguration.DEFAULT_DATE_TIME_PATTERN);
+				localeCombo.setText(JiraLocalConfiguration.DEFAULT_LOCALE.getDisplayName());
 			}
 		});
 
@@ -332,8 +357,8 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 
 	@SuppressWarnings("restriction")
 	@Override
-	public void applyTo(TaskRepository repository) {
-		// PLE-1120 MigrateToSecureStorageJob.migrateToSecureStorage(repository);
+	public void applyTo(final TaskRepository repository) {
+		MigrateToSecureStorageJob.migrateToSecureStorage(repository);
 		repository.setProperty(IRepositoryConstants.PROPERTY_CATEGORY, IRepositoryConstants.CATEGORY_BUGS);
 
 		super.applyTo(repository);
@@ -343,12 +368,14 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 			configuration.setLocale(locales[localeCombo.getSelectionIndex()]);
 		}
 		configuration.setFollowRedirects(followRedirectsButton.getSelection());
+
 		JiraUtil.setConfiguration(repository, configuration);
 		JiraUtil.setCompression(repository, compressionButton.getSelection());
 		JiraUtil.setAutoRefreshConfiguration(repository, autoRefreshConfigurationButton.getSelection());
 		JiraUtil.setLinkedTasksAsSubtasks(repository, linkedTasksAsSubtasksButton.getSelection());
-		JiraUtil.setWorkDaysPerWeek(repository, workDaysPerWeekSpinner.getSelection());
-		JiraUtil.setWorkHoursPerDay(repository, workHoursPerDaySpinner.getSelection());
+
+		JiraUtil.setWorkDaysPerWeekLocal(repository, workDaysPerWeekSpinner.getSelection());
+		JiraUtil.setWorkHoursPerDayLocal(repository, workHoursPerDaySpinner.getSelection());
 		if (limitSearchResultsButton.getSelection()) {
 			JiraUtil.setMaxSearchResults(repository, maxSearchResultsSpinner.getSelection());
 		} else {
@@ -357,6 +384,35 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 		if (characterEncodingValidated) {
 			JiraUtil.setCharacterEncodingValidated(repository, true);
 		}
+
+//		if (!JiraUtil.isUseServerTimeTrackingSettings(repository) && useServerSettingsButton.getSelection()) {
+//			Job refreshServerSettingsJob = new Job(Messages.JiraRepositorySettingsPage_Getting_repository_configuration) {
+//
+//				@Override
+//				protected IStatus run(IProgressMonitor monitor) {
+//					monitor.beginTask(Messages.JiraRepositorySettingsPage_Getting_repository_configuration,
+//							IProgressMonitor.UNKNOWN);
+//					JiraClient client = JiraClientFactory.getDefault().getJiraClient(repository);
+//					try {
+//						client.getCache().refreshConfiguration(monitor);
+//					} catch (JiraException e) {
+//						Status status = new Status(IStatus.ERROR, JiraUiPlugin.ID_PLUGIN, NLS.bind(
+//								Messages.JiraRepositorySettingsPage_Failed_retrieve_repository_configuration,
+//								repository.getRepositoryUrl()));
+//						StatusHandler.log(status);
+//					} finally {
+//						monitor.done();
+//					}
+//					return Status.OK_STATUS;
+//				}
+//			};
+//
+//			refreshServerSettingsJob.setUser(false);
+//			refreshServerSettingsJob.schedule();
+//
+//		}
+//
+//		JiraUtil.setUseServerTimeTrackingSettings(repository, useServerSettingsButton.getSelection());
 	}
 
 	@Override
@@ -432,7 +488,7 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 			}
 
 			AbstractWebLocation location = new TaskRepositoryLocationFactory().createWebLocation(repository);
-			JiraConfiguration configuration = JiraUtil.getConfiguration(repository);
+			JiraLocalConfiguration configuration = JiraUtil.getLocalConfiguration(repository);
 			try {
 				this.serverInfo = JiraClientFactory.getDefault().validateConnection(location, configuration, monitor);
 			} catch (JiraCaptchaRequiredException e) {

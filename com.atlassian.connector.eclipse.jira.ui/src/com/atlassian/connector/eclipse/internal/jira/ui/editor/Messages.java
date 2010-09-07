@@ -54,7 +54,13 @@ public class Messages extends NLS {
 
 	public static String WorkLogPart_Auto_Filled;
 
-	public static String Skip;
+	public static String WorkLogPart_Enable_Automatic_Tracking;
+
+	public static String LogJiraTimeDialog_Set_estimated_time_remaining;
+
+	public static String LogJiraTimeDialog_Stop_And_Log;
+
+	public static String LogJiraTimeDialog_Stop_Only;
 
 	static {
 		// initialize resource bundle
@@ -80,6 +86,8 @@ public class Messages extends NLS {
 	public static String JiraTaskEditorSummaryPart_Attachements_Drag_and_Drop_Hint;
 
 	public static String LogJiraTimeDialog_not_show_dialog;
+
+	public static String LogJiraTimeDialog_Reduce_estimated_time_by;
 
 	public static String LogJiraTimeDialog_Unable_to_find_Time_Tracking_preference;
 

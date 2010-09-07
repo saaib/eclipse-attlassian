@@ -17,7 +17,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
-import java.io.File;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashSet;
@@ -42,6 +41,7 @@ import com.atlassian.connector.eclipse.internal.jira.core.model.Resolution;
 import com.atlassian.connector.eclipse.internal.jira.core.model.SecurityLevel;
 import com.atlassian.connector.eclipse.internal.jira.core.model.ServerInfo;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Version;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraWorkLog.AdjustEstimateMethod;
 import com.atlassian.connector.eclipse.internal.jira.core.model.filter.FilterDefinition;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraClient;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraException;
@@ -89,12 +89,8 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.advanceIssueWorkflow(issue, startOperation, null, null);
 			fail("Expected JiraRemoteMessageException");
-		} catch (JiraRemoteMessageException e) {
-			assertThat(
-					e.getMessage(),
-					either(
-							containsString("It seems that you have tried to perform a workflow operation (Start Progress) that is not valid for the current state of this issue ")).or(
-							equalTo("Workflow Action Invalid")));
+		} catch (JiraException e) {
+			assertThat(e.getMessage(), containsString("Action 4 is invalid"));
 		}
 
 		String stopOperation = JiraTestUtil.getOperation(client, issue.getKey(), "stop");
@@ -104,11 +100,7 @@ public class JiraClientTest extends TestCase {
 			client.advanceIssueWorkflow(issue, stopOperation, null, null);
 			fail("Expected JiraRemoteMessageException");
 		} catch (JiraException e) {
-			assertThat(
-					e.getMessage(),
-					either(
-							containsString("It seems that you have tried to perform a workflow operation (Stop Progress) that is not valid for the current state of this issue ")).or(
-							equalTo("Workflow Action Invalid")));
+			assertThat(e.getMessage(), containsString("Action 301 is invalid"));
 		}
 		client.advanceIssueWorkflow(issue, startOperation, null, null);
 	}
@@ -131,8 +123,8 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.advanceIssueWorkflow(issue, resolveOperation, "comment", null);
 			fail("Expected JiraRemoteMessageException");
-		} catch (JiraRemoteMessageException e) {
-			assertThat(e.getMessage(), either(containsString(resolveMsg)).or(equalTo("Workflow Action Invalid")));
+		} catch (JiraException e) {
+			assertThat(e.getMessage(), containsString("Action 5 is invalid"));
 		}
 
 		// have to get "close" operation after resolving issue
@@ -145,19 +137,15 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.advanceIssueWorkflow(issue, resolveOperation, "comment", null);
 			fail("Expected JiraRemoteMessageException");
-		} catch (JiraRemoteMessageException e) {
-			assertThat(e.getMessage(), either(containsString(resolveMsg)).or(equalTo("Workflow Action Invalid")));
+		} catch (JiraException e) {
+			assertThat(e.getMessage(), containsString("Action 5 is invalid"));
 		}
 
 		try {
 			client.advanceIssueWorkflow(issue, closeOperation, "comment", null);
 			fail("Expected JiraRemoteMessageException");
 		} catch (JiraException e) {
-			assertThat(
-					e.getMessage(),
-					either(
-							containsString("It seems that you have tried to perform a workflow operation (Close Issue) that is not valid for the current state of this issue ")).or(
-							equalTo("Workflow Action Invalid")));
+			assertThat(e.getMessage(), containsString("Action 701 is invalid"));
 		}
 
 		String reopenOperation = JiraTestUtil.getOperation(client, issue.getKey(), "reopen");
@@ -194,18 +182,16 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.updateIssue(issue, "comment", null);
 			fail("Expected JiraException");
-		} catch (JiraRemoteMessageException e) {
-			assertThat(
-					e.getHtmlMessage(),
-					either(equalTo("User 'nonexistantuser' cannot be assigned issues.")).or(
-							equalTo("User &#39;nonexistantuser&#39; cannot be assigned issues.")));
+		} catch (JiraException e) {
+			assertThat(e.getMessage(), either(containsString("User 'nonexistantuser' cannot be assigned issues.")).or(
+					equalTo("User &#39;nonexistantuser&#39; cannot be assigned issues.")));
 		}
 
 		try {
 			client.assignIssueTo(issue, JiraClient.ASSIGNEE_NONE, "", "", null);
 			fail("Expected JiraException");
 		} catch (JiraRemoteMessageException e) {
-			assertEquals("Issues must be assigned.", e.getHtmlMessage());
+			assertThat(e.getHtmlMessage(), containsString("Issues must be assigned."));
 		}
 
 		try {
@@ -218,10 +204,9 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.assignIssueTo(issue, JiraClient.ASSIGNEE_USER, guestUsername, "", null);
 		} catch (JiraRemoteMessageException e) {
-			assertThat(
-					e.getHtmlMessage(),
-					either(equalTo("User 'guest@mylyn.eclipse.org' cannot be assigned issues.")).or(
-							equalTo("User &#39;guest@mylyn.eclipse.org&#39; cannot be assigned issues.")));
+			assertThat(e.getHtmlMessage(), either(
+					containsString("User 'guest@mylyn.eclipse.org' cannot be assigned issues.")).or(
+					equalTo("User &#39;guest@mylyn.eclipse.org&#39; cannot be assigned issues.")));
 		}
 
 		client.assignIssueTo(issue, JiraClient.ASSIGNEE_DEFAULT, "", "", null);
@@ -250,7 +235,7 @@ public class JiraClientTest extends TestCase {
 	public void testAddComment() throws Exception {
 		JiraIssue issue = JiraTestUtil.createIssue(client, "testAddComment");
 
-		client.addCommentToIssue(issue, "comment 1", null);
+		client.addCommentToIssue(issue.getKey(), "comment 1", null);
 		issue = client.getIssueByKey(issue.getKey(), null);
 		Comment comment = getComment(issue, "comment 1");
 		assertNotNull(comment);
@@ -259,7 +244,7 @@ public class JiraClientTest extends TestCase {
 		// test with other privileges
 		client = JiraFixture.current().client(PrivilegeLevel.GUEST);
 
-		client.addCommentToIssue(issue, "comment guest", null);
+		client.addCommentToIssue(issue.getKey(), "comment guest", null);
 		issue = client.getIssueByKey(issue.getKey(), null);
 		comment = getComment(issue, "comment guest");
 		assertNotNull(comment);
@@ -276,20 +261,16 @@ public class JiraClientTest extends TestCase {
 	}
 
 	public void testAttachFile() throws Exception {
-		File file = File.createTempFile("mylyn", null);
-		file.deleteOnExit();
-
 		JiraIssue issue = JiraTestUtil.createIssue(client, "testAttachFile");
 
 		// test attaching an empty file
 		try {
-			client.addAttachment(issue, "", file.getName(), file, "application/binary", null);
+			client.addAttachment(issue, "", "testAttachEmptyFile.txt", new byte[0], null);
 			fail("Expected JiraException");
-		} catch (JiraRemoteMessageException e) {
+		} catch (JiraException e) {
 		}
 
-		client.addAttachment(issue, "comment", "my.filename.1", new byte[] { 'M', 'y', 'l', 'y', 'n' },
-				"application/binary", null);
+		client.addAttachment(issue, "comment", "my.filename.1", new byte[] { 'M', 'y', 'l', 'y', 'n' }, null);
 		issue = client.getIssueByKey(issue.getKey(), null);
 		Attachment attachment = getAttachment(issue, "my.filename.1");
 		assertNotNull(attachment);
@@ -298,7 +279,7 @@ public class JiraClientTest extends TestCase {
 		assertNotNull(attachment.getCreated());
 
 		// spaces in filename
-		client.addAttachment(issue, "", "file name with spaces", new byte[] { '1' }, "text/html", null);
+		client.addAttachment(issue, "", "file name with spaces", new byte[] { '1' }, null);
 		issue = client.getIssueByKey(issue.getKey(), null);
 		attachment = getAttachment(issue, "file name with spaces");
 		assertNotNull(attachment);
@@ -412,7 +393,7 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.updateIssue(issue, "", null);
 			fail("Expected JiraException");
-		} catch (JiraRemoteMessageException e) {
+		} catch (JiraException e) {
 		}
 
 		issue.setSummary("testUpdateIssueGuest");
@@ -421,7 +402,7 @@ public class JiraClientTest extends TestCase {
 		try {
 			client.updateIssue(issue, "", null);
 			fail("Expected JiraException");
-		} catch (JiraRemoteMessageException e) {
+		} catch (JiraException e) {
 		}
 
 		// change privilege level
@@ -486,39 +467,6 @@ public class JiraClientTest extends TestCase {
 		assertEquals(description, issue.getDescription());
 	}
 
-	public void testWatchUnwatchIssue() throws Exception {
-		JiraIssue issue = JiraTestUtil.createIssue(client, "testWatchUnwatch");
-
-		assertFalse(issue.isWatched());
-		client.watchIssue(issue, null);
-		issue = client.getIssueByKey(issue.getKey(), null);
-		// flag is never set
-//		assertTrue(issue.isWatched());
-
-		client.unwatchIssue(issue, null);
-		issue = client.getIssueByKey(issue.getKey(), null);
-		assertFalse(issue.isWatched());
-		client.unwatchIssue(issue, null);
-		issue = client.getIssueByKey(issue.getKey(), null);
-		assertFalse(issue.isWatched());
-	}
-
-	public void testVoteUnvoteIssue() throws Exception {
-		JiraIssue issue = JiraTestUtil.createIssue(client, "testVoteUnvote");
-
-		assertEquals(0, issue.getVotes());
-		assertFalse(issue.canUserVote(client.getUserName()));
-
-		client = JiraFixture.current().client(PrivilegeLevel.GUEST);
-		assertTrue(issue.canUserVote(client.getUserName()));
-		client.voteIssue(issue, null);
-		issue = client.getIssueByKey(issue.getKey(), null);
-		assertEquals(1, issue.getVotes());
-		client.unvoteIssue(issue, null);
-		issue = client.getIssueByKey(issue.getKey(), null);
-		assertEquals(0, issue.getVotes());
-	}
-
 	public void testBasicAuth() throws Exception {
 		basicAuth(JiraFixture.ENTERPRISE_3_13_BASIC_AUTH.getRepositoryUrl());
 	}
@@ -541,7 +489,7 @@ public class JiraClientTest extends TestCase {
 
 	public void testCharacterEncoding() throws Exception {
 		assertEquals("ISO-8859-1", client.getCharacterEncoding(new NullProgressMonitor()));
-		client.getConfiguration().setCharacterEncoding("UTF-8");
+		client.getLocalConfiguration().setCharacterEncoding("UTF-8");
 		assertEquals("UTF-8", client.getCharacterEncoding(new NullProgressMonitor()));
 	}
 
@@ -612,7 +560,7 @@ public class JiraClientTest extends TestCase {
 		assertEquals(1200, issue.getEstimate());
 
 		JiraWorkLog worklog1 = new JiraWorkLog();
-		worklog1.setAutoAdjustEstimate(false);
+		worklog1.setAdjustEstimate(AdjustEstimateMethod.LEAVE);
 		worklog1.setComment("comment");
 		Date time = new GregorianCalendar().getTime();
 		worklog1.setStartDate(time);
@@ -628,7 +576,7 @@ public class JiraClientTest extends TestCase {
 		assertEquals(time, receivedWorklog.getStartDate());
 
 		worklog1 = new JiraWorkLog();
-		worklog1.setAutoAdjustEstimate(true);
+		worklog1.setAdjustEstimate(AdjustEstimateMethod.AUTO);
 		worklog1.setComment("comment2");
 		time = new GregorianCalendar().getTime();
 		worklog1.setStartDate(time);

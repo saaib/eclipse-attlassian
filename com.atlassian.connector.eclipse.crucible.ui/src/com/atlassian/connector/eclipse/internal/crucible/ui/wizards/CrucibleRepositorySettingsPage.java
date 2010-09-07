@@ -11,6 +11,7 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
 import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.RemoteApiLockedDialog;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleClientManager;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
@@ -20,8 +21,8 @@ import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleCli
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClient;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClientData;
+import com.atlassian.theplugin.commons.remoteapi.CaptchaRequiredException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -38,8 +39,6 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.forms.widgets.ExpandableComposite;
-
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -74,15 +73,12 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 				client.validate(monitor, taskRepository);
 			} catch (CoreException e) {
 				IStatus status = e.getStatus();
-				if (e.getCause() != null && e.getCause() instanceof RemoteApiException
-						&& e.getCause().getCause() != null && e.getCause().getCause() instanceof IOException) {
-					if (e.getCause().getCause().getMessage().contains("HTTP 404")) {
+				if (e.getCause() != null && e.getCause() instanceof RemoteApiException) {
+					if (e.getMessage().contains("HTTP 404")) {
 						status = new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
 								"HTTP 404 (Not Found) - Did you enable Remote API in Crucible?", e);
 					}
-					if (e.getCause().getCause().getMessage().contains("HTTP 403")
-							&& e.getCause().getCause().getCause() != null
-							&& e.getCause().getCause().getCause().getMessage().contains("maximum")) {
+					if (e.getCause() instanceof CaptchaRequiredException) {
 						Display.getDefault().asyncExec(new Runnable() {
 							public void run() {
 								new RemoteApiLockedDialog(WorkbenchUtil.getShell(), taskRepository.getRepositoryUrl()).open();
@@ -182,7 +178,7 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 
 	@Override
 	public void applyTo(TaskRepository repository) {
-		// PLE-1120 MigrateToSecureStorageJob.migrateToSecureStorage(repository);
+		MigrateToSecureStorageJob.migrateToSecureStorage(repository);
 		super.applyTo(repository);
 		repository.setProperty(IRepositoryConstants.PROPERTY_CATEGORY, IRepositoryConstants.CATEGORY_REVIEW);
 		CrucibleCorePlugin.getRepositoryConnector();

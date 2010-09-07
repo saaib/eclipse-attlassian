@@ -51,6 +51,7 @@ import com.atlassian.connector.eclipse.internal.jira.core.service.JiraClient;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraException;
 import com.atlassian.connector.eclipse.internal.jira.ui.IJiraTask;
 import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiPlugin;
+import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiUtil;
 import com.atlassian.connector.eclipse.internal.jira.ui.editor.JiraTaskEditorPage;
 
 /**
@@ -187,16 +188,17 @@ public class StartWorkAction extends AbstractStartWorkAction {
 			long seconds = JiraUiUtil.getLoggedActivityTime(iTask);
 
 			LogJiraTimeDialog dialog = new LogJiraTimeDialog(PlatformUI.getWorkbench().getDisplay().getActiveShell(),
-					iTask, seconds);
+					taskData, iTask, seconds);
 
-			dialog.open();
+			int result = dialog.open();
 
-			if (dialog.getReturnCode() == Window.OK) {
+			if (result == Window.OK) {
 				workLog = dialog.getWorkLog();
-			} else if (dialog.getReturnCode() == LogJiraTimeDialog.WINDOW_INTERUPT) {
+			} else if (result == LogJiraTimeDialog.SKIP_LOGGING) {
+				workLog = null;
+			} else {
 				return false;
 			}
-
 		}
 		return true;
 	}

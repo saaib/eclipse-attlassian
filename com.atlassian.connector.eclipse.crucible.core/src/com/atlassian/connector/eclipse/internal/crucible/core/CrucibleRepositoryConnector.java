@@ -199,7 +199,7 @@ public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 
 	@Override
 	public void updateTaskFromTaskData(TaskRepository taskRepository, ITask task, TaskData taskData) {
-		TaskMapper scheme = new TaskMapper(taskData);
+		TaskMapper scheme = new CrucibleTaskMapper(taskData);
 		scheme.applyTo(task);
 		task.setCompletionDate(scheme.getCompletionDate());
 
@@ -253,4 +253,29 @@ public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 		return task.getDueDate() != null;
 	}
 
+	/*
+	 * PLE-1150
+	 * 
+	@SuppressWarnings("unchecked")
+	@Override
+	public boolean isOwnedByUser(TaskRepository repository, ITask task) {
+		if (super.isOwnedByUser(repository, task)) {
+			return true;
+		}
+
+		String ccStr = task.getAttribute(TaskAttribute.USER_CC);
+		if (!StringUtils.isEmpty(ccStr)) {
+			XStream xs = new XStream(new JDomDriver());
+			List<String> cc = (List<String>) xs.fromXML(ccStr);
+			if (cc != null) {
+				for (String username : cc) {
+					if (username.equals(repository.getUserName())) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}*/
 }
