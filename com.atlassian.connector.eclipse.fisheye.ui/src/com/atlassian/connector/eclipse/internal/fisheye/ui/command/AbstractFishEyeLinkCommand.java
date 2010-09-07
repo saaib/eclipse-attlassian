@@ -13,8 +13,8 @@ package com.atlassian.connector.eclipse.internal.fisheye.ui.command;
 
 import com.atlassian.connector.eclipse.fisheye.ui.FishEyeUiUtil;
 import com.atlassian.connector.eclipse.fisheye.ui.preferences.SourceRepositoryMappingPreferencePage;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.ErrorDialogWithHyperlink;
 import com.atlassian.connector.eclipse.internal.fisheye.ui.FishEyeUiPlugin;
-import com.atlassian.connector.eclipse.internal.fisheye.ui.dialogs.ErrorDialogWithHyperlink;
 import com.atlassian.connector.eclipse.ui.AtlassianUiPlugin;
 import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
 

@@ -18,10 +18,6 @@
       %license
    </license>
 
-   <url>
-      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
-   </url>
-
    <includes
          id="com.atlassian.connector.eclipse.crucible"
          version="0.0.0"
@@ -65,7 +61,7 @@
       <import plugin="org.eclipse.team.core"/>
       <import plugin="org.eclipse.team.ui"/>
       <import plugin="org.eclipse.core.filesystem"/>
-      <import plugin="org.eclipse.mylyn.commons.core"/>
+      <import plugin="org.eclipse.mylyn.commons.core" version="3.2.0" match="compatible"/>
       <import plugin="org.eclipse.ui.ide"/>
       <import plugin="org.eclipse.ui.forms"/>
       <import plugin="org.eclipse.ui.editors"/>
@@ -73,7 +69,7 @@
       <import plugin="org.eclipse.jdt.junit"/>
       <import plugin="org.eclipse.search"/>
       <import plugin="org.apache.axis" version="1.4.0" match="greaterOrEqual"/>
-      <!--import plugin="org.eclipse.mylyn.tasks.search"/-->
+
       <import plugin="javax.xml.rpc" version="1.1.0" match="greaterOrEqual"/>
       <import plugin="javax.xml.soap" version="1.2.0" match="greaterOrEqual"/>
       <import plugin="org.apache.commons.httpclient" version="3.1.0" match="greaterOrEqual"/>
@@ -90,20 +86,22 @@
       
       <import feature="org.eclipse.mylyn_feature" version="3.2.0.I20090529" match="compatible"/>
       <import feature="org.eclipse.mylyn.jira_feature" version="3.2.0.I20090529" match="compatible"/>
+      <import feature="org.eclipse.mylyn.commons" version="3.3.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.tasks.core"/>
-      <import plugin="org.eclipse.mylyn.commons.net"/>
-      <import plugin="org.eclipse.mylyn.commons.net" version="3.1.0" match="compatible"/>
-      <import plugin="org.eclipse.mylyn.commons.ui"/>
+      <import plugin="org.eclipse.mylyn.commons.net" version="3.2.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.context.core" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.context.ui" version="3.0.0" match="compatible"/>
-      <import plugin="org.eclipse.mylyn.commons.core" version="3.0.0" match="compatible"/>
-      <import plugin="org.eclipse.mylyn.commons.ui" version="3.0.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.core" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.ui" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.tests" version="3.2.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.monitor.ui" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.resources.ui" version="3.0.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.resources.tests" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.monitor.core" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.ide.ui" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.tasks.core" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.tasks.ui" version="3.0.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.tasks.search" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.java.ui" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.java.tests"/>
             
@@ -175,14 +173,7 @@
          unpack="false"/>
 
    <plugin
-         id="org.eclipse.mylyn.commons.soap"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
-
-   <plugin
-         id="org.eclipse.mylyn.commons.tests"
+         id="org.eclipse.mylyn.tasks.tests"
          download-size="0"
          install-size="0"
          version="0.0.0"
@@ -190,6 +181,14 @@
 
    <plugin
          id="org.eclipse.mylyn.tests.util"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+
+   <plugin
+         id="org.eclipse.mylyn.commons.tests"
          download-size="0"
          install-size="0"
          version="0.0.0"

@@ -13,20 +13,20 @@
 
 package com.atlassian.connector.eclipse.internal.jira.core.service;
 
-import java.io.File;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.commons.httpclient.methods.multipart.PartSource;
+import org.apache.commons.lang.StringUtils;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.mylyn.commons.net.AbstractWebLocation;
 import org.eclipse.mylyn.commons.net.AuthenticationCredentials;
 import org.eclipse.mylyn.commons.net.AuthenticationType;
 
+import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Attachment;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Comment;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Component;
@@ -34,6 +34,7 @@ import com.atlassian.connector.eclipse.internal.jira.core.model.CustomField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraAction;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraConfiguration;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraFilter;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraStatus;
@@ -46,7 +47,6 @@ import com.atlassian.connector.eclipse.internal.jira.core.model.ProjectRole;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Resolution;
 import com.atlassian.connector.eclipse.internal.jira.core.model.SecurityLevel;
 import com.atlassian.connector.eclipse.internal.jira.core.model.ServerInfo;
-import com.atlassian.connector.eclipse.internal.jira.core.model.User;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Version;
 import com.atlassian.connector.eclipse.internal.jira.core.model.WebServerInfo;
 import com.atlassian.connector.eclipse.internal.jira.core.model.filter.FilterDefinition;
@@ -111,16 +111,16 @@ public class JiraClient {
 
 	private final JiraSoapClient soapClient;
 
-	private JiraConfiguration configuration;
+	private JiraLocalConfiguration localConfiguration;
 
 	private final JiraWebSession webSession;
 
-	public JiraClient(AbstractWebLocation location, JiraConfiguration configuration) {
+	public JiraClient(AbstractWebLocation location, JiraLocalConfiguration configuration) {
 		Assert.isNotNull(location);
 		Assert.isNotNull(configuration);
 		this.baseUrl = location.getUrl();
 		this.location = location;
-		this.configuration = configuration;
+		this.localConfiguration = configuration;
 
 		this.cache = new JiraClientCache(this);
 		this.webSession = new JiraWebSession(this);
@@ -130,42 +130,51 @@ public class JiraClient {
 	}
 
 	public JiraClient(AbstractWebLocation location) {
-		this(location, new JiraConfiguration());
+		this(location, new JiraLocalConfiguration());
 	}
 
-	public void addCommentToIssue(JiraIssue issue, String comment, IProgressMonitor monitor) throws JiraException {
-		webClient.addCommentToIssue(issue, comment, monitor);
-	}
-
-	public void addComentToIssueWithViewable(String issueKey, Comment comment, IProgressMonitor monitor)
-			throws JiraException {
+	public void addCommentToIssue(String issueKey, Comment comment, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("addCommentToIssue", null); //$NON-NLS-1$
 		soapClient.addComment(issueKey, comment, monitor);
+	}
+
+	public void addCommentToIssue(String issueKey, String comment, IProgressMonitor monitor) throws JiraException {
+		Comment cmnt = new Comment();
+		cmnt.setComment(comment);
+		addCommentToIssue(issueKey, cmnt, monitor);
 	}
 
 	public void advanceIssueWorkflow(JiraIssue issue, String actionKey, String comment, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("advanceIssueWorkflow", null); //$NON-NLS-1$
 		String[] fields = getActionFields(issue.getKey(), actionKey, monitor);
-		webClient.advanceIssueWorkflow(issue, actionKey, comment, fields, monitor);
+		soapClient.progressWorkflowAction(issue, actionKey, fields, monitor);
+
+		if (!StringUtils.isEmpty(comment)) {
+			addCommentToIssue(issue.getKey(), comment, monitor);
+		}
 	}
 
 	public void assignIssueTo(JiraIssue issue, int assigneeType, String user, String comment, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("assignIssueTo", null); //$NON-NLS-1$
+		/*PLE-1188
+		soapClient.assignIssueTo(issue.getKey(), getAssigneeParam(issue, assigneeType, user), monitor);
+
+		if (!StringUtils.isEmpty(comment)) {
+			addCommentToIssue(issue.getKey(), comment, monitor);
+		}*/
 		webClient.assignIssueTo(issue, assigneeType, user, comment, monitor);
 	}
 
-	public void addAttachment(JiraIssue issue, String comment, PartSource partSource, String contentType,
-			IProgressMonitor monitor) throws JiraException {
-		webClient.attachFile(issue, comment, partSource, contentType, monitor);
-	}
+	public void addAttachment(JiraIssue issue, String comment, String filename, byte[] content, IProgressMonitor monitor)
+			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("addAttachment", null); //$NON-NLS-1$
+		soapClient.addAttachmentsToIssue(issue.getKey(), new String[] { filename }, new byte[][] { content }, monitor);
 
-	public void addAttachment(JiraIssue issue, String comment, String filename, byte[] contents, String contentType,
-			IProgressMonitor monitor) throws JiraException {
-		webClient.attachFile(issue, comment, filename, contents, contentType, monitor);
-	}
-
-	public void addAttachment(JiraIssue issue, String comment, String filename, File file, String contentType,
-			IProgressMonitor monitor) throws JiraException {
-		webClient.attachFile(issue, comment, filename, file, contentType, monitor);
+		if (!StringUtils.isEmpty(comment)) {
+			addCommentToIssue(issue.getKey(), comment, monitor);
+		}
 	}
 
 	/**
@@ -183,18 +192,26 @@ public class JiraClient {
 	 * <li>Fix Version</li>
 	 * <li>Environment</li>
 	 * <li>Description</li>
-	 * <li>Assigee (If sufficient permissions)</li>
+	 * <li>Assignee (If sufficient permissions)</li>
 	 * <li>Reporter (If sufficient permissions)</li>
 	 * </ul>
 	 * All other fields other fields are not settable at this time
 	 * 
 	 * @param issue
 	 *            Prototype issue used to create the new issue
-	 * @return A fully populated {@link com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue} containing the details of
-	 *         the new issue
+	 * @return A fully populated {@link com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue} containing
+	 *         the details of the new issue
 	 */
 	public JiraIssue createIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		String issueKey = webClient.createIssue(issue, monitor);
+		JiraCorePlugin.getMonitoring().logJob("createIssue", null); //$NON-NLS-1$
+		if (issue.getProject().getKey() == null) {
+			Project project = cache.getProjectById(issue.getProject().getId(), monitor);
+			if (project != null) {
+				issue.getProject().setKey(project.getKey());
+			}
+		}
+		String issueKey = soapClient.createIssue(issue, monitor);
+		//String issueKey = webClient.createIssue(issue, monitor);
 		return getIssueByKey(issueKey, monitor);
 	}
 
@@ -203,12 +220,14 @@ public class JiraClient {
 	 * <code>parentIssueId</code> must be set.
 	 */
 	public JiraIssue createSubTask(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("createSubTask", null); //$NON-NLS-1$
 		String issueKey = webClient.createSubTask(issue, monitor);
 		return getIssueByKey(issueKey, monitor);
 	}
 
 	public void deleteIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		webClient.deleteIssue(issue, monitor);
+		JiraCorePlugin.getMonitoring().logJob("deleteIssue", null); //$NON-NLS-1$
+		soapClient.deleteIssue(issue.getKey(), monitor);
 	}
 
 	@Override
@@ -221,11 +240,13 @@ public class JiraClient {
 
 	public void executeNamedFilter(NamedFilter filter, IssueCollector collector, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("executeNamedFilter", null); //$NON-NLS-1$
 		rssClient.executeNamedFilter(filter, collector, monitor);
 	}
 
 	public void findIssues(FilterDefinition filterDefinition, IssueCollector collector, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("findIssues", null); //$NON-NLS-1$
 		rssClient.findIssues(filterDefinition, collector, monitor);
 	}
 
@@ -240,6 +261,7 @@ public class JiraClient {
 	 */
 	public String[] getActionFields(final String issueKey, final String actionId, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getActionFields", null); //$NON-NLS-1$
 		return soapClient.getActionFields(issueKey, actionId, monitor);
 	}
 
@@ -251,6 +273,7 @@ public class JiraClient {
 	 * @return corresponding array of <code>RepositoryOperation</code> objects or <code>null</code>.
 	 */
 	public JiraAction[] getAvailableActions(final String issueKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getAvailableActions", null); //$NON-NLS-1$
 		return soapClient.getAvailableActions(issueKey, monitor);
 	}
 
@@ -263,7 +286,7 @@ public class JiraClient {
 	}
 
 	public String getCharacterEncoding(IProgressMonitor monitor) throws JiraException {
-		if (configuration.getCharacterEncoding() == null) {
+		if (localConfiguration.getCharacterEncoding() == null) {
 			String serverEncoding = getCache().getServerInfo(monitor).getCharacterEncoding();
 			if (serverEncoding != null) {
 				return serverEncoding;
@@ -277,18 +300,20 @@ public class JiraClient {
 			// fallback
 			return DEFAULT_CHARSET;
 		}
-		return configuration.getCharacterEncoding();
+		return localConfiguration.getCharacterEncoding();
 	}
 
 	public Component[] getComponents(String projectKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getComponents", null); //$NON-NLS-1$
 		return soapClient.getComponents(projectKey, monitor);
 	}
 
-	public synchronized JiraConfiguration getConfiguration() {
-		return configuration;
+	public synchronized JiraLocalConfiguration getLocalConfiguration() {
+		return localConfiguration;
 	}
 
 	public CustomField[] getCustomAttributes(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getCustomAttributes", null); //$NON-NLS-1$
 		return soapClient.getCustomAttributes(monitor);
 	}
 
@@ -300,6 +325,7 @@ public class JiraClient {
 	 * @return corresponding array of <code>RepositoryTaskAttribute</code> objects or <code>null</code>.
 	 */
 	public IssueField[] getEditableAttributes(final String issueKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getEditableAttributes", null); //$NON-NLS-1$
 		// work around for bug 205015
 		String version = getCache().getServerInfo(monitor).getVersion();
 		boolean workAround = (new JiraVersion(version).compareTo(JiraVersion.JIRA_3_12) < 0);
@@ -314,6 +340,7 @@ public class JiraClient {
 	 * @return Matching issue or <code>null</code> if no matching issue could be found
 	 */
 	public JiraIssue getIssueByKey(String issueKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getIssueByKey", null); //$NON-NLS-1$
 		SingleIssueCollector collector = new SingleIssueCollector();
 		rssClient.getIssueByKey(issueKey, collector, monitor);
 		if (collector.getIssue() != null && collector.getIssue().getProject() == null) {
@@ -324,10 +351,12 @@ public class JiraClient {
 	}
 
 	public IssueType[] getIssueTypes(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getIssueTypes", null); //$NON-NLS-1$
 		return soapClient.getIssueTypes(monitor);
 	}
 
 	public IssueType[] getIssueTypes(String projectId, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getIssueTypesForProject", null); //$NON-NLS-1$
 		return soapClient.getIssueTypes(projectId, monitor);
 	}
 
@@ -339,6 +368,7 @@ public class JiraClient {
 	 * @return corresponding key or <code>null</code> if the id was not found
 	 */
 	public String getKeyFromId(final String issueId, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getKeyFromId", null); //$NON-NLS-1$
 		return soapClient.getKeyFromId(issueId, monitor);
 	}
 
@@ -353,22 +383,27 @@ public class JiraClient {
 	 * @return List of all filters taht are stored and executed on the server
 	 */
 	public NamedFilter[] getNamedFilters(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getNamedFilters", null); //$NON-NLS-1$
 		return soapClient.getNamedFilters(monitor);
 	}
 
 	public Priority[] getPriorities(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getPriorities", null); //$NON-NLS-1$
 		return soapClient.getPriorities(monitor);
 	}
 
 	public Project[] getProjects(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getProjects", null); //$NON-NLS-1$
 		return soapClient.getProjects(monitor);
 	}
 
 	public Resolution[] getResolutions(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getResolutions", null); //$NON-NLS-1$
 		return soapClient.getResolutions(monitor);
 	}
 
 	public ServerInfo getServerInfo(final IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getServerInfo", null); //$NON-NLS-1$
 		// get server information through SOAP
 		ServerInfo serverInfo = soapClient.getServerInfo(monitor);
 
@@ -387,14 +422,17 @@ public class JiraClient {
 	}
 
 	public JiraStatus[] getStatuses(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getStatuses", null); //$NON-NLS-1$
 		return soapClient.getStatuses(monitor);
 	}
 
 	public IssueType[] getSubTaskIssueTypes(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getSubTaskIssueTypes", null); //$NON-NLS-1$
 		return soapClient.getSubTaskIssueTypes(monitor);
 	}
 
 	public IssueType[] getSubTaskIssueTypes(String projectId, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getSubTaskIssueTypesForProject", null); //$NON-NLS-1$
 		return soapClient.getSubTaskIssueTypes(projectId, monitor);
 	}
 
@@ -410,6 +448,7 @@ public class JiraClient {
 	 *            the project key
 	 */
 	public Version[] getVersions(String key, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getVersions", null); //$NON-NLS-1$
 		List<Version> versions = Arrays.asList(soapClient.getVersions(key, monitor));
 		Collections.sort(versions, new Comparator<Version>() {
 			public int compare(Version o1, Version o2) {
@@ -430,6 +469,7 @@ public class JiraClient {
 	 * {@link com.atlassian.connector.eclipse.internal.jira.core.JiraClientManager#testConnection(String, String, String)}
 	 */
 	public void login(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("login", null); //$NON-NLS-1$
 		soapClient.login(monitor);
 	}
 
@@ -438,23 +478,20 @@ public class JiraClient {
 	 * only out of courtesy to the server. Jira will automatically expire sessions after a set amount of time.
 	 */
 	public void logout(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("logout", null); //$NON-NLS-1$
 		soapClient.logout(monitor);
 	}
 
 	public void quickSearch(String searchString, IssueCollector collector, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("quickSearch", null); //$NON-NLS-1$
 		rssClient.quickSearch(searchString, collector, monitor);
 
 	}
 
-	public byte[] getAttachment(JiraIssue issue, Attachment attachment, IProgressMonitor monitor) throws JiraException {
-		byte[] result = new byte[(int) attachment.getSize()];
-		webClient.retrieveFile(issue, attachment, result, monitor);
-		return result;
-	}
-
 	public void getAttachment(JiraIssue issue, Attachment attachment, OutputStream out, IProgressMonitor monitor)
 			throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getAttachment", null); //$NON-NLS-1$
 		webClient.retrieveFile(issue, attachment, out, monitor);
 	}
 
@@ -481,88 +518,78 @@ public class JiraClient {
 		return getBaseUrl();
 	}
 
-	/**
-	 * Revoke vote for <code>issue</code>. Issues can only be voted on if the issue was not raied by the current user
-	 * and is not resolved. Before calling this method, ensure it is valid to vote by calling
-	 * {@link com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue#canUserVote(String)}. If it is not valid for the user
-	 * to vote for an issue this method will do nothing.
-	 * 
-	 * @param issue
-	 *            Issue to remove vote from
-	 */
-	public void unvoteIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		webClient.unvoteIssue(issue, monitor);
-	}
-
-	/**
-	 * Stop watching <code>issue</code>. Nothing will happen if the user is not currently watching the issue.
-	 * 
-	 * @param issue
-	 *            Issue to stop watching
-	 */
-	public void unwatchIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		webClient.unwatchIssue(issue, monitor);
-	}
-
 	public void updateIssue(JiraIssue issue, String comment, IProgressMonitor monitor) throws JiraException {
-		webClient.updateIssue(issue, comment, monitor);
-	}
+		JiraCorePlugin.getMonitoring().logJob("updateIssue", null); //$NON-NLS-1$
+		soapClient.updateIssue(issue, monitor);
 
-	/**
-	 * Vote for <code>issue</code>. Issues can only be voted on if the issue was not raied by the current user and is
-	 * not resolved. Before calling this method, ensure it is valid to vote by calling
-	 * {@link com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue#canUserVote(String)}. If it is not valid for the user
-	 * to vote for an issue this method will do nothing.
-	 * 
-	 * @param issue
-	 *            Issue to vote for
-	 */
-	public void voteIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		webClient.voteIssue(issue, monitor);
-	}
-
-	/**
-	 * Begin watching <code>issue</code>. Nothing will happen if the user is already watching the issue.
-	 * 
-	 * @param issue
-	 *            Issue to begin watching
-	 */
-	public void watchIssue(JiraIssue issue, IProgressMonitor monitor) throws JiraException {
-		webClient.watchIssue(issue, monitor);
+		if (!StringUtils.isEmpty(comment)) {
+			addCommentToIssue(issue.getKey(), comment, monitor);
+		}
 	}
 
 	public JiraWorkLog[] getWorklogs(String issueKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getWorklogs", null); //$NON-NLS-1$
 		return soapClient.getWorkLogs(issueKey, monitor);
 	}
 
 	public SecurityLevel[] getAvailableSecurityLevels(String projectKey, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getAvailableSecurityLevels", null); //$NON-NLS-1$
 		return soapClient.getAvailableSecurityLevels(projectKey, monitor);
 	}
 
 	public JiraWorkLog addWorkLog(String issueKey, JiraWorkLog log, IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("addWorkLog", null); //$NON-NLS-1$
 		return soapClient.addWorkLog(issueKey, log, monitor);
 	}
 
 	public ProjectRole[] getProjectRoles(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getProjectRoles", null); //$NON-NLS-1$
 		return soapClient.getProjectRoles(monitor);
 	}
 
-	public User[] getProjectRoleUsers(Project project, ProjectRole projectRole, IProgressMonitor monitor)
-			throws JiraException {
-		return soapClient.getProjectRoleUsers(project, projectRole, monitor);
+	public JiraConfiguration getConfiguration(IProgressMonitor monitor) throws JiraException {
+		JiraCorePlugin.getMonitoring().logJob("getConfiguration", null); //$NON-NLS-1$
+		return soapClient.getConfiguration(monitor);
 	}
 
-	public synchronized void setConfiguration(JiraConfiguration configuration) {
+	public synchronized void setLocalConfiguration(JiraLocalConfiguration configuration) {
 		Assert.isNotNull(configuration);
-		this.configuration = configuration;
+		this.localConfiguration = configuration;
 	}
 
 	public boolean isCompressionEnabled() {
-		return getConfiguration().isCompressionEnabled();
+		return getLocalConfiguration().isCompressionEnabled();
 	}
 
 	public synchronized void purgeSession() {
 		webSession.purgeSession();
 		soapClient.purgeSession();
 	}
+
+	/**
+	 * For testing only.
+	 * 
+	 * @return
+	 */
+	public JiraWebSession getWebSession() {
+		return webSession;
+	}
+
+	public String getAssigneeParam(JiraIssue issue, int assigneeType, String user) {
+		switch (assigneeType) {
+		case JiraClient.ASSIGNEE_CURRENT:
+			return issue.getAssignee();
+		case JiraClient.ASSIGNEE_DEFAULT:
+			return "-1"; //$NON-NLS-1$
+		case JiraClient.ASSIGNEE_NONE:
+			return ""; //$NON-NLS-1$
+		case JiraClient.ASSIGNEE_SELF:
+			return getUserName();
+		case JiraClient.ASSIGNEE_USER:
+			return user;
+		default:
+			return user;
+		}
+	}
+
 }

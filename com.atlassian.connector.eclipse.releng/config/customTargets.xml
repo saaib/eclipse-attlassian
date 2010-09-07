@@ -104,6 +104,8 @@
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.bamboo.tests/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.bamboo.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.branding.ui/build.xml"/>
+		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.commons.core/build.xml"/>
+		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.commons.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.core/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.crucible.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.crucible.core/build.xml"/>
@@ -126,7 +128,8 @@
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.team.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.team.tests/build.xml"/>
-		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.monitor.usage/build.xml"/>
+		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.monitor.core/build.xml"/>
+		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.monitor.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.jira.ui/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.jira.core/build.xml"/>
 		<cloverizeBuildXml file="${buildDirectory}/plugins/com.atlassian.connector.eclipse.jira.tests/build.xml"/>

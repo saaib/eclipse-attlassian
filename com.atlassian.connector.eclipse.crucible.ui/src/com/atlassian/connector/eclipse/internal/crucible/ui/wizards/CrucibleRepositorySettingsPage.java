@@ -11,6 +11,8 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.RemoteApiLockedDialog;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleClientManager;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepositoryConnector;
@@ -19,23 +21,24 @@ import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleCli
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClient;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClientData;
+import com.atlassian.theplugin.commons.remoteapi.CaptchaRequiredException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.mylyn.commons.net.Policy;
+import org.eclipse.mylyn.internal.provisional.commons.ui.WorkbenchUtil;
+import org.eclipse.mylyn.internal.tasks.core.IRepositoryConstants;
 import org.eclipse.mylyn.tasks.core.RepositoryTemplate;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositorySettingsPage;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.forms.widgets.ExpandableComposite;
-
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -69,14 +72,23 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 				monitor = Policy.backgroundMonitorFor(monitor);
 				client.validate(monitor, taskRepository);
 			} catch (CoreException e) {
-				if (e.getCause() != null && e.getCause() instanceof RemoteApiException
-						&& e.getCause().getCause() != null && e.getCause().getCause() instanceof IOException
-						&& e.getCause().getCause().getMessage().contains("HTTP 404")) {
-					setStatus(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
-							"HTTP 404 (Not Found) - Did you enable Remote API in Crucible?", e));
-				} else {
-					setStatus(e.getStatus());
+				IStatus status = e.getStatus();
+				if (e.getCause() != null && e.getCause() instanceof RemoteApiException) {
+					if (e.getMessage().contains("HTTP 404")) {
+						status = new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
+								"HTTP 404 (Not Found) - Did you enable Remote API in Crucible?", e);
+					}
+					if (e.getCause() instanceof CaptchaRequiredException) {
+						Display.getDefault().asyncExec(new Runnable() {
+							public void run() {
+								new RemoteApiLockedDialog(WorkbenchUtil.getShell(), taskRepository.getRepositoryUrl()).open();
+							}
+						});
+						status = new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
+								"HTTP 403 (Permission denied) - You've been locked out from remote API.", e);
+					}
 				}
+				setStatus(status);
 				return;
 			} finally {
 				if (client != null) {
@@ -159,14 +171,16 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 		fishEyeSection.setClient(fishEyeButton);
 		fishEyeButton.setSelection(repository != null && CrucibleRepositoryConnector.isFishEye(repository));
 
-		// below line adds additional task repository settings section (supported wiki selection) 
-//		super.createContributionControls(parentControl);
+		// below line adds additional task repository settings section (supported wiki selection)
+		// super.createContributionControls(parentControl);
 
 	}
 
 	@Override
 	public void applyTo(TaskRepository repository) {
+		MigrateToSecureStorageJob.migrateToSecureStorage(repository);
 		super.applyTo(repository);
+		repository.setProperty(IRepositoryConstants.PROPERTY_CATEGORY, IRepositoryConstants.CATEGORY_REVIEW);
 		CrucibleCorePlugin.getRepositoryConnector();
 		CrucibleRepositoryConnector.updateFishEyeStatus(repository, fishEyeButton.getSelection());
 

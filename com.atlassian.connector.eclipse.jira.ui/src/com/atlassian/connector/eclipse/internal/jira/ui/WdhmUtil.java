@@ -28,7 +28,9 @@ public class WdhmUtil {
 	 * 
 	 * @param text
 	 * @return
+	 * @deprecated Use Mylyn JiraUtil.getTimeFormat(repo)
 	 */
+	@Deprecated
 	public static boolean isValid(String text) {
 		return text == null || text.length() == 0 || isCorrect(text);
 	}
@@ -37,5 +39,4 @@ public class WdhmUtil {
 		Matcher m = p.matcher(text);
 		return m.matches();
 	}
-
 }

@@ -11,23 +11,37 @@
 
 package com.atlassian.connector.eclipse.internal.jira.ui;
 
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
+import org.eclipse.mylyn.internal.tasks.ui.TasksUiPlugin;
+import org.eclipse.mylyn.tasks.core.ITask;
+import org.eclipse.mylyn.tasks.core.ITaskActivityListener;
+import org.eclipse.mylyn.tasks.core.TaskActivityAdapter;
 import org.eclipse.mylyn.tasks.ui.TaskRepositoryLocationUiFactory;
 import org.eclipse.mylyn.tasks.ui.TasksUi;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 
+import com.atlassian.connector.eclipse.internal.branding.ui.RuntimeUtil;
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
+import com.atlassian.connector.eclipse.internal.jira.core.IJiraConstants;
 import com.atlassian.connector.eclipse.internal.jira.core.JiraClientFactory;
+import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
 
 /**
  * @author Mik Kersten
  * @author Wesley Coelho (initial integration patch)
  * @author Steffen Pingel
  */
+@SuppressWarnings("restriction")
 public class JiraUiPlugin extends AbstractUIPlugin {
 
-	public static final String ID_PLUGIN = "org.eclipse.mylyn.jira.ui"; //$NON-NLS-1$
+	public static final String ID_PLUGIN = "com.atlassian.connector.eclipse.jira.ui"; //$NON-NLS-1$
+
+	public static final String PRODUCT_NAME = "Atlassian JIRA Connector"; //$NON-NLS-1$
 
 	private static JiraUiPlugin instance;
 
@@ -46,6 +60,26 @@ public class JiraUiPlugin extends AbstractUIPlugin {
 		return AbstractUIPlugin.imageDescriptorFromPlugin("org.eclipse.mylyn.jira", path); //$NON-NLS-1$
 	}
 
+	private final ITaskActivityListener activityTimeListener = new TaskActivityAdapter() {
+
+		private boolean initialized = false;
+
+		@Override
+		public void elapsedTimeUpdated(ITask task, long newElapsedTime) {
+			if (initialized && newElapsedTime == 0) {
+				// reset logged time activity
+				JiraUiUtil.clearLoggedActivityTime(task);
+			}
+		}
+
+		@Override
+		public void activityReset() {
+			// hack to prevent reseting activity time when Mylyn is starting and reloading activity
+			initialized = true;
+		}
+
+	};
+
 	public JiraUiPlugin() {
 	}
 
@@ -61,10 +95,26 @@ public class JiraUiPlugin extends AbstractUIPlugin {
 		instance = this;
 		JiraClientFactory.getDefault().setTaskRepositoryLocationFactory(new TaskRepositoryLocationUiFactory(), false);
 		TasksUi.getRepositoryManager().addListener(JiraClientFactory.getDefault());
+
+		if (!getPreferenceStore().getBoolean(IJiraConstants.PREFERENCE_SECURE_STORAGE_MIGRATED)
+				&& !RuntimeUtil.suppressConfigurationWizards()) {
+			Job migrateJob = new MigrateToSecureStorageJob(JiraCorePlugin.CONNECTOR_KIND);
+			migrateJob.addJobChangeListener(new JobChangeAdapter() {
+				@Override
+				public void done(IJobChangeEvent event) {
+					super.done(event);
+					getPreferenceStore().setValue(IJiraConstants.PREFERENCE_SECURE_STORAGE_MIGRATED, Boolean.TRUE);
+				}
+			});
+			migrateJob.schedule();
+		}
+
+		TasksUiPlugin.getTaskActivityManager().addActivityListener(activityTimeListener);
 	}
 
 	@Override
 	public void stop(BundleContext context) throws Exception {
+		TasksUiPlugin.getTaskActivityManager().removeActivityListener(activityTimeListener);
 		TasksUi.getRepositoryManager().removeListener(JiraClientFactory.getDefault());
 		JiraClientFactory.getDefault().logOutFromAll();
 		instance = null;

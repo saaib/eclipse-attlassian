@@ -167,7 +167,9 @@ public class Messages extends NLS {
 
 	public static String JiraProjectPage_Pick_a_project_to_open_the_new_bug_editor;
 
-	public static String JiraProjectPage_Update_Projects_from_Repository;
+	public static String JiraProjectPage_Update_Project_Listing;
+
+	public static String JiraRepositorySettingsPage_Administration_priviliges_required;
 
 	public static String JiraRepositorySettingsPage_Advanced_Configuration;
 
@@ -177,10 +179,6 @@ public class Messages extends NLS {
 
 	public static String JiraRepositorySettingsPage_Automatically;
 
-	public static String JiraRepositorySettingsPage_Based_on_resolution;
-
-	public static String JiraRepositorySettingsPage_Completed_tasks;
-
 	public static String JiraRepositorySettingsPage_Compression;
 
 	public static String JiraRepositorySettingsPage_Date_Picker_Format;
@@ -189,9 +187,11 @@ public class Messages extends NLS {
 
 	public static String JiraRepositorySettingsPage_Enabled;
 
+	public static String JiraRepositorySettingsPage_Failed_retrieve_repository_configuration;
+
 	public static String JiraRepositorySettingsPage_Follow_redirects;
 
-	public static String JiraRepositorySettingsPage_If_checked_an_issue_is_considered_completed_if_it_has_a_resolution;
+	public static String JiraRepositorySettingsPage_Getting_repository_configuration;
 
 	public static String JiraRepositorySettingsPage_If_checked_linked_tasks_show_as_subtasks_in_the_task_list;
 
@@ -206,6 +206,8 @@ public class Messages extends NLS {
 	public static String JiraRepositorySettingsPage_Locale;
 
 	public static String JiraRepositorySettingsPage_Refresh_configuration;
+
+	public static String JiraRepositorySettingsPage_remote_api_locked;
 
 	public static String JiraRepositorySettingsPage_The_repository_location_reported_by_the_server_does_not_match_the_provided_location;
 
@@ -222,6 +224,8 @@ public class Messages extends NLS {
 	public static String JiraRepositorySettingsPage_Time_tracking;
 
 	public static String JiraRepositorySettingsPage_Use_server_location_;
+
+	public static String JiraRepositorySettingsPage_use_server_settings;
 
 	public static String JiraRepositorySettingsPage_working_days_per_week;
 

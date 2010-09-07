@@ -40,7 +40,7 @@ public class AllJiraTests {
 		suite.addTestSuite(JiraClientFactoryServerUnrelatedTest.class);
 
 		// repository tests
-		for (JiraFixture fixture : JiraFixture.ALL) {
+		for (JiraFixture fixture : new JiraFixture[] { JiraFixture.DEFAULT }) {
 			fixture.createSuite(suite);
 			fixture.add(JiraCustomQueryTest.class);
 			fixture.add(JiraClientFactoryTest.class);
@@ -55,5 +55,4 @@ public class AllJiraTests {
 		}
 		return suite;
 	}
-
 }

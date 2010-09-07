@@ -21,10 +21,13 @@ import com.atlassian.connector.eclipse.jira.tests.client.JiraWebClientTest;
 import com.atlassian.connector.eclipse.jira.tests.core.FilterDefinitionConverterTest;
 import com.atlassian.connector.eclipse.jira.tests.core.JiraClientCacheTest;
 import com.atlassian.connector.eclipse.jira.tests.core.JiraCommentDateComparatorTest;
+import com.atlassian.connector.eclipse.jira.tests.core.JiraRemoteMessageExceptionTest;
+import com.atlassian.connector.eclipse.jira.tests.core.JiraSoapConverterTest;
 import com.atlassian.connector.eclipse.jira.tests.core.JiraTimeFormatTest;
 import com.atlassian.connector.eclipse.jira.tests.model.ComponentFilterTest;
 import com.atlassian.connector.eclipse.jira.tests.model.JiraVersionTest;
 import com.atlassian.connector.eclipse.jira.tests.model.VersionFilterTest;
+import com.atlassian.connector.eclipse.jira.tests.ui.JiraUiUtilTest;
 import com.atlassian.connector.eclipse.jira.tests.ui.WdhmUtilTest;
 import com.atlassian.connector.eclipse.jira.tests.util.JiraFixture;
 
@@ -45,8 +48,11 @@ public class AllJiraHeadlessStandaloneTests {
 		suite.addTestSuite(VersionFilterTest.class);
 		suite.addTestSuite(ComponentFilterTest.class);
 		suite.addTestSuite(JiraCommentDateComparatorTest.class);
+		suite.addTestSuite(JiraRemoteMessageExceptionTest.class);
+		suite.addTestSuite(JiraSoapConverterTest.class);
+		suite.addTestSuite(JiraUiUtilTest.class);
 		// repository tests
-		for (JiraFixture fixture : JiraFixture.ALL) {
+		for (JiraFixture fixture : new JiraFixture[] { JiraFixture.DEFAULT }) {
 			fixture.createSuite(suite);
 			fixture.add(JiraClientTest.class);
 			fixture.add(JiraWebClientTest.class);
@@ -54,5 +60,4 @@ public class AllJiraHeadlessStandaloneTests {
 		}
 		return suite;
 	}
-
 }

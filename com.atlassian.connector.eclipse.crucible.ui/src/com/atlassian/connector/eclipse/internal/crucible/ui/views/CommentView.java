@@ -17,6 +17,7 @@ import com.atlassian.connector.eclipse.internal.crucible.ui.ActiveReviewManager;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleImages;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.ActiveReviewManager.IReviewActivationListener;
+import com.atlassian.connector.eclipse.internal.crucible.ui.AvatarImages.AvatarSize;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.EditActiveTaskAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.EditCommentAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.PostDraftCommentAction;
@@ -24,15 +25,15 @@ import com.atlassian.connector.eclipse.internal.crucible.ui.actions.RemoveCommen
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.ReplyToCommentAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.ToggleCommentsLeaveUnreadAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.operations.MarkCommentsReadJob;
+import com.atlassian.connector.eclipse.internal.crucible.ui.util.CommentUiUtil;
 import com.atlassian.connector.eclipse.ui.PartListenerAdapter;
-import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomField;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment.ReadState;
+import com.atlassian.theplugin.commons.crucible.api.model.notification.CrucibleNotification;
 import com.atlassian.theplugin.commons.util.MiscUtil;
-
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.action.IMenuListener;
@@ -49,13 +50,14 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonFonts;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonImages;
 import org.eclipse.mylyn.internal.tasks.ui.editors.RichTextEditor;
-import org.eclipse.mylyn.internal.tasks.ui.editors.TaskEditorExtensions;
 import org.eclipse.mylyn.tasks.core.ITask;
-import org.eclipse.mylyn.tasks.core.TaskRepository;
-import org.eclipse.mylyn.tasks.ui.TasksUi;
-import org.eclipse.mylyn.tasks.ui.editors.AbstractTaskEditorExtension;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.custom.StackLayout;
+import org.eclipse.swt.events.ControlAdapter;
+import org.eclipse.swt.events.ControlEvent;
+import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
@@ -73,7 +75,6 @@ import org.eclipse.ui.forms.IFormColors;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.part.ViewPart;
 import org.jetbrains.annotations.Nullable;
-
 import java.text.DateFormat;
 import java.util.Collection;
 import java.util.Map;
@@ -95,6 +96,8 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 	private Object currentSelection;
 
 	private Label author;
+
+	private Label authorAvatar;
 
 	private Label date;
 
@@ -162,6 +165,8 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 	private ITask task;
 
 	private Job markAsReadJob;
+
+	private Composite scrolledComposite;
 
 	@Override
 	public void init(IViewSite site) throws PartInitException {
@@ -248,47 +253,48 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 		Composite detailsComposite = toolkit.createComposite(stackComposite);
 		GridLayoutFactory.fillDefaults().numColumns(1).margins(15, 15).applyTo(detailsComposite);
 
-		// Author | Date | Revisions | Draft | Defect | Defect type
+		// Avatar | Author | Date | Revisions | Draft | Defect | Defect type
 		// Comment text here
 
 		header = toolkit.createComposite(detailsComposite);
 		GridLayoutFactory.fillDefaults().numColumns(15).applyTo(header);
 		GridDataFactory.fillDefaults().grab(true, false).applyTo(header);
 
-		createLabelControl(toolkit, header, "Author:");
+		authorAvatar = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(authorAvatar);
 		author = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().applyTo(author);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(author);
 
 		createLabelControl(toolkit, header, "Created:");
 		date = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().applyTo(date);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(date);
 
 		readState = createLabelControl(toolkit, header, "");
-		GridDataFactory.fillDefaults().applyTo(readState);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(readState);
 
 		draftIcon = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().hint(15, SWT.DEFAULT).applyTo(draftIcon);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).hint(15, SWT.DEFAULT).applyTo(draftIcon);
 
 		draft = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().applyTo(draft);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(draft);
 
 		defectIcon = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().hint(15, SWT.DEFAULT).applyTo(defectIcon);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).hint(15, SWT.DEFAULT).applyTo(defectIcon);
 
 		defect = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().applyTo(defect);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(defect);
 
 		defectRank = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
 		defectRank.setToolTipText("Defect Rank");
-		GridDataFactory.fillDefaults().applyTo(defectRank);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(defectRank);
 
 		defectClassification = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
 		defectClassification.setToolTipText("Defect Classification");
-		GridDataFactory.fillDefaults().applyTo(defectClassification);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(defectClassification);
 
 		createLabelControl(toolkit, header, "Applies to revisions:");
 		revisions = toolkit.createLabel(header, "", SWT.READ_ONLY | SWT.SINGLE);
-		GridDataFactory.fillDefaults().applyTo(revisions);
+		GridDataFactory.fillDefaults().align(SWT.LEFT, SWT.CENTER).applyTo(revisions);
 
 		return detailsComposite;
 	}
@@ -455,6 +461,9 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 				author.setText(activeComment.getAuthor().getDisplayName());
 				author.setToolTipText(activeComment.getAuthor().getUsername());
 
+				authorAvatar.setImage(CrucibleUiPlugin.getDefault().getAvatarsCache().getAvatarOrDefaultImage(
+						activeComment.getAuthor(), AvatarSize.LARGE));
+
 				date.setText(DateFormat.getDateInstance().format(activeComment.getCreateDate()));
 
 				if (activeComment instanceof VersionedComment) {
@@ -469,7 +478,7 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 				stackLayout.topControl = linkComposite;
 				stackComposite.layout();
 
-				setText(activeComment.getMessage());
+				setCommentText(activeComment);
 
 				header.layout();
 
@@ -494,39 +503,55 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 		}
 	}
 
-	private void setText(String text) {
-		TaskRepository repository = TasksUi.getRepositoryManager().getRepository(task.getConnectorKind(),
-				task.getRepositoryUrl());
+	private ScrolledComposite createScrolledWikiTextComment(FormToolkit toolkit, final Comment comment,
+			final Composite parent) {
+		final ScrolledComposite sc = new ScrolledComposite(parent, SWT.V_SCROLL);
 
+		final Composite scrolledContent = new Composite(sc, SWT.NONE);
+		sc.setContent(scrolledContent);
+		toolkit.adapt(sc);
+		scrolledContent.setLayout(new FillLayout());
+		editor = CommentUiUtil.createWikiTextControl(toolkit, scrolledContent, comment);
+
+		// these incantations make wrapped component (WikiText here) respecting resizing actions
+		// and wrap if needed
+		sc.setExpandVertical(true);
+		sc.setExpandHorizontal(true);
+		sc.addControlListener(new ControlAdapter() {
+			public void controlResized(ControlEvent e) {
+				Rectangle r = sc.getClientArea();
+				sc.setMinSize(scrolledContent.computeSize(r.width,
+						SWT.DEFAULT));
+			}
+		});
+		// end of incantations
+		// this call instead did not cause the correct wrapping (longer texts were just cut)
+		// scrolledContent.setSize(scrolledContent.computeSize(SWT.DEFAULT, SWT.DEFAULT));
+		return sc;
+	}
+
+	private void setCommentText(Comment comment) {
 		if (toolkit != null) {
-			TaskEditorExtensions.setTaskEditorExtensionId(repository,
-					AtlassianUiUtil.CONFLUENCE_WIKI_TASK_EDITOR_EXTENSION);
-			AbstractTaskEditorExtension extension = TaskEditorExtensions.getTaskEditorExtension(repository);
-			if (editor != null) {
-				editor.getControl().dispose();
+			if (scrolledComposite != null) {
+				scrolledComposite.dispose();
+				scrolledComposite = null;
 			}
-			editor = new RichTextEditor(repository, SWT.MULTI | SWT.BORDER, null, extension);
-			if (extension != null) {
-				editor.setReadOnly(false);
-			} else {
-				editor.setReadOnly(true);
-			}
-			editor.setText(text);
-			editor.createControl(detailsComposite, toolkit);
-			editor.showPreview();
-			editor.getViewer().getTextWidget().setBackground(null);
-
-			GridDataFactory.fillDefaults().grab(true, true).applyTo(editor.getControl());
-
+			scrolledComposite = createScrolledWikiTextComment(toolkit, comment, detailsComposite);
+			GridDataFactory.fillDefaults().grab(true, true).applyTo(scrolledComposite);
 			detailsComposite.layout();
 		}
 	}
 
-	public void reviewActivated(ITask task, Review review) {
-		reviewUpdated(task, review);
+	public void reviewActivated(ITask aTask, Review aReview) {
+		this.task = aTask;
+		Display.getDefault().asyncExec(new Runnable() {
+			public void run() {
+				updateViewer();
+			}
+		});
 	}
 
-	public void reviewDeactivated(ITask task, Review review) {
+	public void reviewDeactivated(ITask aTask, Review aReview) {
 		Display.getDefault().asyncExec(new Runnable() {
 			public void run() {
 				stackLayout.topControl = linkComposite;
@@ -535,13 +560,8 @@ public class CommentView extends ViewPart implements ISelectionChangedListener, 
 		});
 	}
 
-	public void reviewUpdated(final ITask task, final Review review) {
-		this.task = task;
-		Display.getDefault().asyncExec(new Runnable() {
-			public void run() {
-				updateViewer();
-			}
-		});
+	public void reviewUpdated(ITask aTask, Review aReview, Collection<CrucibleNotification> differences) {
+		reviewActivated(aTask, aReview);
 	}
 
 	public void selectionChanged(SelectionChangedEvent event) {

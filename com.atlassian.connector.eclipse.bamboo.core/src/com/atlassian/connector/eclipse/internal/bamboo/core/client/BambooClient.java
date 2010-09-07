@@ -13,12 +13,14 @@ package com.atlassian.connector.eclipse.internal.bamboo.core.client;
 
 import com.atlassian.connector.commons.api.BambooServerFacade2;
 import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.eclipse.internal.bamboo.core.BambooCorePlugin;
 import com.atlassian.connector.eclipse.internal.bamboo.core.BambooUtil;
 import com.atlassian.connector.eclipse.internal.core.client.AbstractConnectorClient;
 import com.atlassian.connector.eclipse.internal.core.client.HttpSessionCallbackImpl;
 import com.atlassian.theplugin.commons.bamboo.BambooBuild;
 import com.atlassian.theplugin.commons.bamboo.BambooPlan;
 import com.atlassian.theplugin.commons.bamboo.BuildDetails;
+import com.atlassian.theplugin.commons.bamboo.api.BambooSession;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
 
@@ -35,7 +37,7 @@ import java.util.Collection;
  * @author Shawn Minto
  * @author Wojciech Seliga
  */
-public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
+public class BambooClient extends AbstractConnectorClient<BambooServerFacade2, BambooSession> {
 
 	private BambooClientData clientData;
 
@@ -55,6 +57,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public BambooClientData updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository)
 			throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("updateRepositoryData", null); //$NON-NLS-1$
 		this.clientData = execute(new BambooRemoteOperation<BambooClientData>(monitor, taskRepository) {
 			@Override
 			public BambooClientData run(BambooServerFacade2 server, ConnectionCfg connectionCfg,
@@ -71,24 +74,22 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public Collection<BambooBuild> getBuilds(IProgressMonitor monitor, final TaskRepository taskRepository,
 			boolean promptForCredentials) throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("getBuilds", null); //$NON-NLS-1$
 		return execute(new BambooRemoteOperation<Collection<BambooBuild>>(monitor, taskRepository) {
 			@Override
 			public Collection<BambooBuild> run(BambooServerFacade2 server, ConnectionCfg serverCfg,
 					IProgressMonitor monitor) throws RemoteApiException, ServerPasswordNotProvidedException {
 				monitor.subTask("Retrieving builds");
-				if (server.isBamboo24(serverCfg)) {
-					return server.getSubscribedPlansResultsNew(serverCfg,
-							BambooUtil.getSubscribedPlans(taskRepository), false, 0);
-				} else {
-					return server.getSubscribedPlansResults(serverCfg, BambooUtil.getSubscribedPlans(taskRepository),
-							false, 0);
-				}
+				return server.getSubscribedPlansResults(serverCfg, BambooUtil.getSubscribedPlans(taskRepository),
+						BambooUtil.isUseFavourites(taskRepository), 0);
 			}
+
 		}, promptForCredentials);
 	}
 
 	public BuildDetails getBuildDetails(IProgressMonitor monitor, TaskRepository taskRepository, final BambooBuild build)
 			throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("getBuildDetails", null); //$NON-NLS-1$
 		return execute(new BambooRemoteOperation<BuildDetails>(monitor, taskRepository) {
 			@Override
 			public BuildDetails run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -103,6 +104,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public String getBuildLogs(IProgressMonitor monitor, TaskRepository taskRepository, final BambooBuild build)
 			throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("getBuildLogs", null); //$NON-NLS-1$
 		return execute(new BambooRemoteOperation<String>(monitor, taskRepository) {
 			@Override
 			public String run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -116,6 +118,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public void addLabelToBuild(IProgressMonitor monitor, TaskRepository repository, final BambooBuild build,
 			final String label) throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("addLabelToBuild", null); //$NON-NLS-1$
 		execute(new BambooRemoteOperation<Object>(monitor, repository) {
 			@Override
 			public Object run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -129,6 +132,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public void addCommentToBuild(IProgressMonitor monitor, TaskRepository repository, final BambooBuild build,
 			final String comment) throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("addCommentToBuild", null); //$NON-NLS-1$
 		execute(new BambooRemoteOperation<Object>(monitor, repository) {
 			@Override
 			public Object run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -142,6 +146,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public void runBuild(IProgressMonitor monitor, TaskRepository repository, final BambooBuild build)
 			throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("runBuild", null); //$NON-NLS-1$
 		execute(new BambooRemoteOperation<Object>(monitor, repository) {
 			@Override
 			public Object run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -155,6 +160,7 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 
 	public BambooBuild getBuildForPlanAndNumber(IProgressMonitor monitor, final TaskRepository repository,
 			final String planKey, final int buildNumber, final int timezoneOffset) throws CoreException {
+		BambooCorePlugin.getMonitoring().logJob("getBuildForPlanAndNumber", null); //$NON-NLS-1$
 		return execute(new BambooRemoteOperation<BambooBuild>(monitor, repository) {
 			@Override
 			public BambooBuild run(BambooServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -163,5 +169,11 @@ public class BambooClient extends AbstractConnectorClient<BambooServerFacade2> {
 				return server.getBuildForPlanAndNumber(serverCfg, planKey, buildNumber, timezoneOffset);
 			}
 		});
+	}
+
+	@Override
+	protected BambooSession getSession(ConnectionCfg connectionCfg) throws RemoteApiException,
+			ServerPasswordNotProvidedException {
+		return facade.getSession(connectionCfg);
 	}
 }

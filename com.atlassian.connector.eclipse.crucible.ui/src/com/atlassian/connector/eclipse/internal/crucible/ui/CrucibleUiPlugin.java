@@ -11,14 +11,21 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui;
 
+import com.atlassian.connector.eclipse.internal.branding.ui.RuntimeUtil;
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.notifications.CrucibleNotificationProvider;
 import com.atlassian.connector.eclipse.ui.commons.ResourceSelectionTree.TreeViewMode;
 
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.jface.dialogs.IDialogSettings;
 import org.eclipse.jface.dialogs.MessageDialogWithToggle;
+import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.TasksUi;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.BundleContext;
 
 /**
@@ -39,6 +46,12 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 	public static final String PRODUCT_NAME = "Atlassian Crucible Connector";
 
+	private static final String DEFAULT_PROJECT = "defaultProject";
+
+	private static final String ALLOW_ANYONE_TO_JOIN = "allowAnyoneToJoin";
+
+	private static final String START_REVIEW = "startReview";
+
 	// The shared instance
 	private static CrucibleUiPlugin plugin;
 
@@ -48,6 +61,8 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 	private SwitchingPerspectiveReviewActivationListener switchingPerspectivesListener;
 
+	private AvatarImages avatarImages;
+
 	/**
 	 * The constructor
 	 */
@@ -56,6 +71,7 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 	/*
 	 * (non-Javadoc)
+	 * 
 	 * @see org.eclipse.ui.plugin.AbstractUIPlugin#start(org.osgi.framework.BundleContext)
 	 */
 	@Override
@@ -65,9 +81,23 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 		TasksUi.getRepositoryManager().addListener(CrucibleCorePlugin.getRepositoryConnector().getClientManager());
 
+		if (!getPreferenceStore().getBoolean(CrucibleUiConstants.PREFERENCE_SECURE_STORAGE_MIGRATED)
+				&& !RuntimeUtil.suppressConfigurationWizards()) {
+			Job migrateJob = new MigrateToSecureStorageJob(CrucibleCorePlugin.CONNECTOR_KIND);
+			migrateJob.addJobChangeListener(new JobChangeAdapter() {
+				@Override
+				public void done(IJobChangeEvent event) {
+					getPreferenceStore().setValue(CrucibleUiConstants.PREFERENCE_SECURE_STORAGE_MIGRATED, Boolean.TRUE);
+				}
+			});
+			migrateJob.schedule();
+		}
+
 		switchingPerspectivesListener = new SwitchingPerspectiveReviewActivationListener();
 		activeReviewManager = new ActiveReviewManager(true);
 		activeReviewManager.addReviewActivationListener(switchingPerspectivesListener);
+
+		avatarImages = new AvatarImages();
 
 		enableActiveReviewManager();
 
@@ -80,6 +110,7 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 	/*
 	 * (non-Javadoc)
+	 * 
 	 * @see org.eclipse.ui.plugin.AbstractUIPlugin#stop(org.osgi.framework.BundleContext)
 	 */
 	@Override
@@ -91,6 +122,10 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 
 		activeReviewManager.dispose();
 		activeReviewManager = null;
+
+		avatarImages.dispose();
+		avatarImages = null;
+
 		plugin = null;
 		super.stop(context);
 
@@ -174,4 +209,36 @@ public class CrucibleUiPlugin extends AbstractUIPlugin {
 		}
 		return section;
 	}
+
+	public AvatarImages getAvatarsCache() {
+		return this.avatarImages;
+	}
+
+	public void updateLastSelectedProject(TaskRepository repository, @Nullable String projectKey) {
+		repository.setProperty(DEFAULT_PROJECT, projectKey);
+	}
+
+	@Nullable
+	public String getLastSelectedProjectKey(TaskRepository repository) {
+		return repository.getProperty(DEFAULT_PROJECT);
+	}
+
+	public boolean getAllowAnyoneOption(TaskRepository repository) {
+		final String prop = repository.getProperty(ALLOW_ANYONE_TO_JOIN);
+		return prop != null && Boolean.valueOf(prop);
+	}
+
+	public void updateAllowAnyoneOption(TaskRepository taskRepository, boolean allowAnyone) {
+		taskRepository.setProperty(ALLOW_ANYONE_TO_JOIN, String.valueOf(allowAnyone));
+	}
+
+	public boolean getStartReviewOption(TaskRepository repository) {
+		final String prop = repository.getProperty(START_REVIEW);
+		return prop != null && Boolean.valueOf(prop);
+	}
+
+	public void updateStartReviewOption(TaskRepository taskRepository, boolean startReview) {
+		taskRepository.setProperty(START_REVIEW, String.valueOf(startReview));
+	}
+
 }

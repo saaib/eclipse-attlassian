@@ -23,11 +23,17 @@
 			<contains string="${targets}" substring="3.5" />
 		</not>
 	</condition>
+	<condition property="skip3.6">
+		<not>
+			<contains string="${targets}" substring="3.6" />
+		</not>
+	</condition>
 
 	<target name="for-each-target">
 		<antcall target="e3.3" />
 		<antcall target="e3.4" />
 		<antcall target="e3.5" />
+		<antcall target="e3.6" />
 	</target>
 
 	<target name="e3.3" unless="skip3.3">
@@ -51,6 +57,14 @@
 			<param name="build.target" value="3.5" />
 			<param name="eclipse.sdk.url" value="${eclipse.url.3.5}" />
 			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.5}" />
+		</antcall>
+	</target>
+	
+	<target name="e3.6" unless="skip3.6">
+		<antcall target="${call}">
+			<param name="build.target" value="3.6" />
+			<param name="eclipse.sdk.url" value="${eclipse.url.3.6}" />
+			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.6}" />
 		</antcall>
 	</target>
 
@@ -289,6 +303,9 @@
 			<fileset dir="${basedir}/maps">
 				<include name="*.map" />
 			</fileset>
+			<filterset>
+				<filter token="buildDirectory" value="${build.home}/${build.target}"/>
+			</filterset>
 		</copy>
 	</target>
 
@@ -716,7 +733,7 @@
 	<target name="pack-helper">
 		<property name="timeout" value="3600000" />
 		<property name="application" value="org.eclipse.update.core.siteOptimizer" />
-		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.3.4}/eclipse" />
+		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.version}/eclipse" />
 		<property name="vmargs" value=" -Xms40m -Xmx512m" />
 		<property name="log" value="${build.results}/pack-${build.target}.log" />
 
@@ -748,7 +765,7 @@
 	<target name="generate-metadata-helper">
 		<property name="timeout" value="3600000" />
 		<property name="application" value="org.eclipse.equinox.p2.metadata.generator.EclipseGenerator" />
-		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.3.4}/eclipse" />
+		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.3.5}/eclipse" />
 		<property name="vmargs" value=" -Xms40m -Xmx512m" />
 
 		<echo message="Generating P2 meta-data for ${dir}" />
@@ -855,7 +872,7 @@
 	<target name="ant-helper">
 		<property name="timeout" value="10000000" />
 		<property name="application" value="org.eclipse.ant.core.antRunner" />
-		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.3.5}/eclipse" />
+		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.version}/eclipse" />
 		<property name="vmargs" value=" -Xms40m -Xmx1024m" />
 
 		<java fork="true" dir="." timeout="${timeout}" logError="true" failonerror="true" classname="org.eclipse.core.launcher.Main">

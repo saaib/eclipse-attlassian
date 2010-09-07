@@ -25,7 +25,10 @@ import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.osgi.util.NLS;
 import org.osgi.framework.BundleContext;
 
+import com.atlassian.connector.eclipse.core.monitoring.Monitoring;
+import com.atlassian.connector.eclipse.internal.core.CoreMessages;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraAuthenticationException;
+import com.atlassian.connector.eclipse.internal.jira.core.service.JiraCaptchaRequiredException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraRemoteMessageException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraServiceUnavailableException;
@@ -43,9 +46,11 @@ public class JiraCorePlugin extends Plugin {
 
 	public final static String CONNECTOR_KIND = "jira"; //$NON-NLS-1$
 
-	public final static String LABEL = NLS.bind(Messages.JiraCorePlugin_JIRA_description, "3.4"); //$NON-NLS-1$
+	public final static String LABEL = NLS.bind(Messages.JiraCorePlugin_JIRA_description, "3.13"); //$NON-NLS-1$
 
 	private static boolean initialized;
+
+	private static Monitoring monitoring = null;
 
 	/**
 	 * The constructor.
@@ -113,7 +118,10 @@ public class JiraCorePlugin extends Plugin {
 
 	public static IStatus toStatus(TaskRepository repository, Throwable e) {
 		String url = repository.getRepositoryUrl();
-		if (e instanceof JiraAuthenticationException) {
+		if (e instanceof JiraCaptchaRequiredException) {
+			return new RepositoryStatus(repository.getRepositoryUrl(), IStatus.ERROR, ID_PLUGIN,
+					RepositoryStatus.ERROR_REPOSITORY_LOGIN, CoreMessages.Captcha_authentication_required);
+		} else if (e instanceof JiraAuthenticationException) {
 			return RepositoryStatus.createLoginError(url, ID_PLUGIN);
 		} else if (e instanceof JiraServiceUnavailableException) {
 			return new RepositoryStatus(url, IStatus.ERROR, ID_PLUGIN, RepositoryStatus.ERROR_IO, e.getMessage(), e);
@@ -123,9 +131,18 @@ public class JiraCorePlugin extends Plugin {
 		} else if (e instanceof JiraException) {
 			return new RepositoryStatus(url, IStatus.ERROR, ID_PLUGIN, RepositoryStatus.ERROR_REPOSITORY,
 					e.getMessage(), e);
+		} else if (e instanceof InvalidJiraQueryException) {
+			return new RepositoryStatus(url, IStatus.ERROR, ID_PLUGIN, RepositoryStatus.ERROR_REPOSITORY, NLS.bind(
+					CoreMessages.Invalid_query, e.getMessage()), e);
 		} else {
 			return RepositoryStatus.createInternalError(ID_PLUGIN, "Unexpected error", e); //$NON-NLS-1$
 		}
 	}
 
+	public static Monitoring getMonitoring() {
+		if (monitoring == null) {
+			monitoring = new Monitoring(ID_PLUGIN);
+		}
+		return monitoring;
+	}
 }

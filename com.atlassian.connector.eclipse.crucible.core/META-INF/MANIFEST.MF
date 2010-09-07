@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Atlassian Connector for Eclipse Crucible Core
 Bundle-SymbolicName: com.atlassian.connector.eclipse.crucible.core;singleton:=true
-Bundle-Version: 2.1.0.qualifier
+Bundle-Version: 2.3.0.qualifier
 Bundle-Activator: com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: J2SE-1.5
@@ -14,7 +14,8 @@ Require-Bundle: org.eclipse.core.runtime,
  com.atlassian.connector.eclipse.fisheye.core,
  com.atlassian.connector.eclipse.core,
  org.jetbrains.annotations;resolution:=optional,
- com.thoughtworks.xstream
+ com.thoughtworks.xstream,
+ com.atlassian.connector.eclipse.commons.core;visibility:=reexport
 Export-Package: com.atlassian.connector.eclipse.internal.crucible.core;x-friends:="com.atlassian.connector.eclipse.crucible.tests,com.atlassian.connector.eclipse.crucible.ui, com.atlassian.connector.eclipse.fisheye.ui",
  com.atlassian.connector.eclipse.internal.crucible.core.client;x-friends:="com.atlassian.connector.eclipse.crucible.tests,com.atlassian.connector.eclipse.crucible.ui",
  com.atlassian.connector.eclipse.internal.crucible.core.client.model;x-friends:="com.atlassian.connector.eclipse.crucible.tests,com.atlassian.connector.eclipse.crucible.ui"
