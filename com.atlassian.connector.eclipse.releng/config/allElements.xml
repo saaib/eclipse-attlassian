@@ -15,6 +15,18 @@
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.commons" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse.commons" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
 			<property name="id" value="com.atlassian.connector.eclipse.bamboo" />
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
@@ -31,21 +43,37 @@
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse.perforce" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
 			<property name="id" value="com.atlassian.connector.eclipse.subversive" />
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
-			<property name="id" value="com.atlassian.connector.eclipse" />
+			<property name="id" value="com.atlassian.connector.eclipse.test" />
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
-			<property name="id" value="com.atlassian.connector.eclipse.test" />
+			<property name="id" value="com.atlassian.connector.eclipse.jira" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="org.eclipse.mylyn.jira_feature" />
 		</ant>
 	</target>
 
 	<target name="siteElementsDelegator">
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.commons" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse.commons" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
 			<property name="id" value="com.atlassian.connector.eclipse" />
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
@@ -58,6 +86,10 @@
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse.perforce" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
 			<property name="id" value="com.atlassian.connector.eclipse.subclipse" />
 		</ant>
 		<ant antfile="${genericTargets}" target="${target}">
@@ -67,6 +99,14 @@
 		<ant antfile="${genericTargets}" target="${target}">
 			<property name="type" value="feature" />
 			<property name="id" value="com.atlassian.connector.eclipse.cvs" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="com.atlassian.connector.eclipse.jira" />
+		</ant>
+		<ant antfile="${genericTargets}" target="${target}">
+			<property name="type" value="feature" />
+			<property name="id" value="org.eclipse.mylyn.jira_feature" />
 		</ant>
 	</target>
 	
@@ -89,6 +129,9 @@
 	<target name="assemble.com.atlassian.connector.eclipse.dependencies">
 		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
 	</target>
+	<target name="assemble.com.atlassian.connector.eclipse.perforce">
+		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
+	</target>
 	<target name="assemble.com.atlassian.connector.eclipse.subclipse">
 		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
 	</target>
@@ -98,8 +141,19 @@
 	<target name="assemble.com.atlassian.connector.eclipse.cvs">
 		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
 	</target>
+	<target name="assemble.com.atlassian.connector.eclipse.jira">
+		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
+	</target>
+	<target name="assemble.org.eclipse.mylyn.jira_feature">
+		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
+	</target>
 	<target name="assemble.com.atlassian.connector.eclipse.test">
 		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
 	</target>
-	
+	<target name="assemble.com.atlassian.connector.commons">
+		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
+	</target>
+	<target name="assemble.com.atlassian.connector.eclipse.commons">
+		<ant antfile="${assembleScriptName}" dir="${buildDirectory}" />
+	</target>
 </project>

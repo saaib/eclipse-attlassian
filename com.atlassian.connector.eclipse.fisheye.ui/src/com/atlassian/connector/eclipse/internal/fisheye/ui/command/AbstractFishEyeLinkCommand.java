@@ -11,10 +11,12 @@
 
 package com.atlassian.connector.eclipse.internal.fisheye.ui.command;
 
-import com.atlassian.connector.eclipse.fisheye.ui.preferences.FishEyePreferencePage;
+import com.atlassian.connector.eclipse.fisheye.ui.FishEyeUiUtil;
+import com.atlassian.connector.eclipse.fisheye.ui.preferences.SourceRepositoryMappingPreferencePage;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.ErrorDialogWithHyperlink;
 import com.atlassian.connector.eclipse.internal.fisheye.ui.FishEyeUiPlugin;
-import com.atlassian.connector.eclipse.internal.fisheye.ui.dialogs.ErrorDialogWithHyperlink;
-import com.atlassian.connector.eclipse.ui.team.TeamUiUtils;
+import com.atlassian.connector.eclipse.ui.AtlassianUiPlugin;
+import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -58,8 +60,12 @@ public abstract class AbstractFishEyeLinkCommand extends AbstractHandler {
 				//				lineRange = new LineRange(textSelection.getStartLine(), textSelection.getEndLine()
 				//						- textSelection.getStartLine());
 				// does not work (i.e. it returns previously selected text region rather than selected now ?!?
-				lineRange = TeamUiUtils.getSelectedLineNumberRangeFromEditorInput(activeEditor,
+				lineRange = AtlassianUiUtil.getSelectedLineNumberRangeFromEditorInput(activeEditor,
 						activeEditor.getEditorInput());
+				if (lineRange == null) {
+					StatusHandler.log(new Status(IStatus.INFO, AtlassianUiPlugin.PLUGIN_ID,
+							"Editor is not an ITextEditor or there's no text selection available."));
+				}
 			}
 		}
 		if (resource != null) {
@@ -73,8 +79,7 @@ public abstract class AbstractFishEyeLinkCommand extends AbstractHandler {
 
 	private void processResource(IResource resource, LineRange lineRange, final Shell shell) {
 		try {
-			final String url = FishEyeUiPlugin.getDefault().getFishEyeSettingsManager().buildFishEyeUrl(resource,
-					lineRange);
+			final String url = FishEyeUiUtil.buildFishEyeUrl(resource, lineRange);
 			if (url != null) {
 				processUrl(url);
 			}
@@ -84,7 +89,7 @@ public abstract class AbstractFishEyeLinkCommand extends AbstractHandler {
 					+ e.getMessage(), "<a>Configure FishEye Settings</a>", new Runnable() {
 				public void run() {
 					final PreferenceDialog prefDialog = PreferencesUtil.createPreferenceDialogOn(shell,
-							FishEyePreferencePage.ID, null, null);
+							SourceRepositoryMappingPreferencePage.ID, null, null);
 					if (prefDialog != null) {
 						prefDialog.open();
 					}
@@ -112,7 +117,7 @@ public abstract class AbstractFishEyeLinkCommand extends AbstractHandler {
 
 		IEditorInput editorInput = getEditorInputFromSelection(HandlerUtil.getCurrentSelection(event));
 		if (editorInput != null && editorPart != null) {
-			return TeamUiUtils.getSelectedLineNumberRangeFromEditorInput(editorPart, editorInput);
+			return AtlassianUiUtil.getSelectedLineNumberRangeFromEditorInput(editorPart, editorInput);
 		}
 		return null;
 	}

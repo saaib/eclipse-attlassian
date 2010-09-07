@@ -11,22 +11,24 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.annotations;
 
+import com.atlassian.connector.commons.misc.IntRanges;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleImages;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
-import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.AddGeneralCommentToFileAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.AddLineCommentToFileAction;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
-import com.atlassian.connector.eclipse.ui.team.ICompareAnnotationModel;
-import com.atlassian.theplugin.commons.crucible.ValueNotYetInitialized;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.ruler.CommentAnnotationRulerColumn;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
+import com.atlassian.theplugin.commons.VersionedVirtualFile;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
 
+import org.eclipse.compare.contentmergeviewer.TextMergeViewer;
 import org.eclipse.compare.internal.MergeSourceViewer;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.ITextInputListener;
@@ -37,20 +39,24 @@ import org.eclipse.jface.text.source.CompositeRuler;
 import org.eclipse.jface.text.source.IAnnotationHover;
 import org.eclipse.jface.text.source.IAnnotationModel;
 import org.eclipse.jface.text.source.IAnnotationModelExtension;
+import org.eclipse.jface.text.source.ISharedTextColors;
 import org.eclipse.jface.text.source.LineRange;
 import org.eclipse.jface.text.source.OverviewRuler;
 import org.eclipse.jface.text.source.SourceViewer;
+import org.eclipse.jface.util.IPropertyChangeListener;
+import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.swt.custom.LineBackgroundEvent;
 import org.eclipse.swt.custom.LineBackgroundListener;
 import org.eclipse.swt.custom.StyledText;
-import org.eclipse.swt.events.MouseAdapter;
-import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.editors.text.EditorsUI;
 import org.eclipse.ui.internal.editors.text.EditorsPlugin;
 import org.eclipse.ui.internal.texteditor.AnnotationColumn;
+import org.eclipse.ui.internal.texteditor.PropertyEventDispatcher;
 import org.eclipse.ui.texteditor.AnnotationPreference;
 import org.eclipse.ui.texteditor.AnnotationPreferenceLookup;
 import org.eclipse.ui.texteditor.DefaultMarkerAnnotationAccess;
@@ -59,6 +65,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Model for annotations in the diff view.
@@ -66,7 +73,7 @@ import java.util.Iterator;
  * @author Thomas Ehrnhoefer
  */
 @SuppressWarnings("restriction")
-public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
+public class CrucibleCompareAnnotationModel {
 
 	private static SourceViewer getSourceViewer(MergeSourceViewer sourceViewer) {
 		if (SourceViewer.class.isInstance(sourceViewer)) {
@@ -81,7 +88,7 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 					return (SourceViewer) returnValue;
 				}
 			} catch (Exception e) {
-				//ignore
+				// ignore
 			}
 		}
 		return null;
@@ -91,8 +98,43 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 		private final class ColoringLineBackgroundListener implements LineBackgroundListener {
 			private final StyledText styledText;
 
+			private Color colorCommented;
+
+			private PropertyEventDispatcher fDispatcher;
+
 			private ColoringLineBackgroundListener(StyledText styledText) {
 				this.styledText = styledText;
+				initialize();
+			}
+
+			private void updateCommentedColor(AnnotationPreference pref, IPreferenceStore store) {
+				if (pref != null) {
+					RGB rgb = CommentAnnotationRulerColumn.getColorFromAnnotationPreference(store, pref);
+					colorCommented = getSharedColors().getColor(rgb);
+				}
+			}
+
+			private void initialize() {
+				final IPreferenceStore store = EditorsUI.getPreferenceStore();
+				if (store == null) {
+					return;
+				}
+
+				AnnotationPreferenceLookup lookup = EditorsUI.getAnnotationPreferenceLookup();
+				final AnnotationPreference commentedPref = lookup.getAnnotationPreference(CrucibleCommentAnnotation.COMMENT_ANNOTATION_ID);
+
+				updateCommentedColor(commentedPref, store);
+
+				fDispatcher = new PropertyEventDispatcher(store);
+
+				if (commentedPref != null) {
+					fDispatcher.addPropertyChangeListener(commentedPref.getColorPreferenceKey(),
+							new IPropertyChangeListener() {
+								public void propertyChange(PropertyChangeEvent event) {
+									updateCommentedColor(commentedPref, store);
+								}
+							});
+				}
 			}
 
 			public void lineGetBackground(LineBackgroundEvent event) {
@@ -115,38 +157,39 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 					if (lineNr >= startLine && lineNr <= endLine) {
 						AnnotationPreference pref = new AnnotationPreferenceLookup().getAnnotationPreference(annotation);
 						if (pref.getHighlightPreferenceValue()) {
-							event.lineBackground = new Color(Display.getDefault(), pref.getColorPreferenceValue());
+							event.lineBackground = colorCommented;
 						}
 					}
 				}
 			}
 
 			/**
-			 * Galileo hack to deal with slaveDocuments (when clicking on java structure elements). The styledText
-			 * will not contain the whole text anymore, so our line numbering is off
+			 * Galileo hack to deal with slaveDocuments (when clicking on java structure elements). The styledText will
+			 * not contain the whole text anymore, so our line numbering is off
 			 * 
 			 * @param event
 			 * @return
 			 */
 			private int getDocumentOffset(LineBackgroundEvent event) {
-				/* there is no access to DefaultDocumentAdapter and thus the (master or slave) document..
-				 * so we have to assume that on first call this event actually has the full text.
-				 * this text, and the text of the current styled text will be used to calculate the offset 
+				/*
+				 * there is no access to DefaultDocumentAdapter and thus the (master or slave) document.. so we have to assume
+				 * that on first call this event actually has the full text. this text, and the text of the current styled text
+				 * will be used to calculate the offset
 				 */
 				if (event.widget instanceof StyledText) {
 					String currentText = ((StyledText) event.widget).getText();
 					if (initialText == null) {
 						initialText = currentText;
-						//since it is initial call, offset should be 0 anyway
+						// since it is initial call, offset should be 0 anyway
 						return 0;
 					}
-					//if text is unchanged, offset it 0
+					// if text is unchanged, offset it 0
 					if (currentText.equals(initialText)) {
 						return 0;
 					}
-					//current text is different, check if it is contained in initialText
+					// current text is different, check if it is contained in initialText
 					if (initialText.contains(currentText)) {
-						//calculate the offset
+						// calculate the offset
 						int charoffset = initialText.indexOf(currentText);
 						int lineOffset = 0;
 						String delimiter = ((StyledText) event.widget).getLineDelimiter();
@@ -160,7 +203,7 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 						}
 						return lineOffset;
 					} else {
-						//log error since we assume the initial text contains all slaveTexts.
+						// log error since we assume the initial text contains all slaveTexts.
 						StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
 								"Could not find text offset for annotation highlighting"
 										+ " - current text not contained in initial text."));
@@ -222,17 +265,8 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 
 						crucibleAnnotationModel.setEditorDocument(sourceViewer.getDocument());
 						createVerticalRuler(newInput, sourceViewerClazz);
-//						createOverviewRuler(newInput, sourceViewerClazz);
+						// createOverviewRuler(newInput, sourceViewerClazz);
 						createHighlighting(sourceViewerClazz);
-
-						sourceViewer.getTextWidget().addMouseListener(new MouseAdapter() {
-							@Override
-							public void mouseDown(MouseEvent e) {
-								// ignore
-								int offset = ((TextSelection) sourceViewer.getSelection()).getOffset();
-								CrucibleUiUtil.highlightAnnotationInRichEditor(offset, crucibleAnnotationModel);
-							}
-						});
 					} catch (Throwable t) {
 						StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
 								"Error attaching Crucible annotation model", t));
@@ -243,16 +277,15 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 
 		private void createHighlighting(Class<SourceViewer> sourceViewerClazz) throws IllegalArgumentException,
 				IllegalAccessException, SecurityException, NoSuchFieldException {
-			//TODO this could use some performance tweaks
+			// TODO this could use some performance tweaks
 			final StyledText styledText = sourceViewer.getTextWidget();
 			styledText.addLineBackgroundListener(new ColoringLineBackgroundListener(styledText));
 		}
 
 		/*
-		 * overview ruler problem: displayed in both viewers. the diff editor ruler is actually custom drawn
-		 * (see TextMergeViewer.fBirdsEyeCanvas)
-		 * the ruler that gets created in this method is longer than the editor, meaning its not an overview
-		 * (not next to the scrollbar)
+		 * overview ruler problem: displayed in both viewers. the diff editor ruler is actually custom drawn (see
+		 * TextMergeViewer.fBirdsEyeCanvas) the ruler that gets created in this method is longer than the editor, meaning its
+		 * not an overview (not next to the scrollbar)
 		 */
 		@SuppressWarnings("unused")
 		private void createOverviewRuler(IDocument newInput, Class<SourceViewer> sourceViewerClazz)
@@ -280,7 +313,7 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 			Method declareMethod = sourceViewerClazz.getDeclaredMethod("ensureOverviewHoverManagerInstalled");
 			declareMethod.setAccessible(true);
 			declareMethod.invoke(sourceViewer);
-			//overviewRuler is null
+			// overviewRuler is null
 
 			Field hoverManager = sourceViewerClazz.getDeclaredField("fOverviewRulerHoveringController");
 			hoverManager.setAccessible(true);
@@ -359,8 +392,10 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 			sourceViewer.showAnnotationsOverview(true);
 		}
 
-		public void focusOnLines(int startLine, int endLine) {
-			// ignore
+		public void focusOnLines(IntRanges range) {
+			// editors count lines from 0, Crucible counts from 1
+			final int startLine = range.getTotalMin() - 1;
+			final int endLine = range.getTotalMax() - 1;
 			if (sourceViewer != null) {
 				IDocument document = sourceViewer.getDocument();
 				if (document != null) {
@@ -368,9 +403,14 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 						int offset = document.getLineOffset(startLine);
 						int length = document.getLineOffset(endLine) - offset;
 						StyledText widget = sourceViewer.getTextWidget();
-						widget.setRedraw(false);
-						sourceViewer.revealRange(offset, length);
-						widget.setRedraw(true);
+						try {
+							widget.setRedraw(false);
+							//sourceViewer.revealRange(offset, length);
+							//sourceViewer.setSelectedRange(offset, 0);
+							sourceViewer.setSelection(new TextSelection(offset, length), true);
+						} finally {
+							widget.setRedraw(true);
+						}
 					} catch (BadLocationException e) {
 						StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID, e.getMessage(), e));
 					}
@@ -383,9 +423,7 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 					&& addGeneralCommentAction == null) {
 				addLineCommentAction = new AddLineCommentToFileAction(this, crucibleAnnotationModel.getCrucibleFile());
 				addLineCommentAction.setImageDescriptor(CrucibleImages.ADD_COMMENT);
-				addGeneralCommentAction = new AddGeneralCommentToFileAction();
-				addGeneralCommentAction.setCrucibleFile(crucibleAnnotationModel.getCrucibleFile());
-				addGeneralCommentAction.setReview(review);
+				addGeneralCommentAction = new AddGeneralCommentToFileAction(crucibleAnnotationModel.getCrucibleFile());
 
 				if (sourceViewer != null) {
 					sourceViewer.addSelectionChangedListener(addLineCommentAction);
@@ -421,6 +459,12 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 
 	private final VersionedComment commentToFocus;
 
+	private TextMergeViewer fMergeViewer;
+
+	private MergeSourceViewer fRightSourceViewer;
+
+	private MergeSourceViewer fLeftSourceViewer;
+
 	public CrucibleCompareAnnotationModel(CrucibleFileInfo crucibleFile, Review review, VersionedComment commentToFocus) {
 		super();
 		this.review = review;
@@ -431,7 +475,12 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 		this.commentToFocus = commentToFocus;
 	}
 
-	public void attachToViewer(final MergeSourceViewer fLeft, final MergeSourceViewer fRight) {
+	public void attachToViewer(final TextMergeViewer viewer, final MergeSourceViewer fLeft,
+			final MergeSourceViewer fRight) {
+		fMergeViewer = viewer;
+		fLeftSourceViewer = fLeft;
+		fRightSourceViewer = fRight;
+
 		/*
 		 * only create listeners if they are not already existing
 		 */
@@ -439,17 +488,16 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 			leftViewerListener = addTextInputListener(fLeft, leftAnnotationModel, false);
 		} else {
 			/*
-			 * Using asyncExec here because if the underlying slaveDocument (part of the file that
-			 * gets displayed when clicking on a java structure in the compare editor) is changed, but
-			 * the master document is not, we do not get any event afterwards that would give us a place
-			 * to hook our code to override the annotationHover.
-			 * Since all is done in the UI thread, using this asyncExec hack works because the unconfigure and
-			 * configure of the document is finished and our hover-hack stays. 
+			 * Using asyncExec here because if the underlying slaveDocument (part of the file that gets displayed when clicking
+			 * on a java structure in the compare editor) is changed, but the master document is not, we do not get any event
+			 * afterwards that would give us a place to hook our code to override the annotationHover. Since all is done in the
+			 * UI thread, using this asyncExec hack works because the unconfigure and configure of the document is finished and
+			 * our hover-hack stays.
 			 */
 			Display.getDefault().asyncExec(new Runnable() {
 				public void run() {
 					try {
-						//if listeners exist, just make sure the hover hack is in there
+						// if listeners exist, just make sure the hover hack is in there
 						leftViewerListener.forceCustomAnnotationHover();
 					} catch (Exception e) {
 						StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
@@ -464,7 +512,7 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 			Display.getDefault().asyncExec(new Runnable() {
 				public void run() {
 					try {
-						//if listeners exist, just make sure the hover hack is in there
+						// if listeners exist, just make sure the hover hack is in there
 						rightViewerListener.forceCustomAnnotationHover();
 					} catch (Exception e) {
 						StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
@@ -497,42 +545,53 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 	public void updateCrucibleFile(Review newReview) {
 		CrucibleFile leftOldFile = leftAnnotationModel.getCrucibleFile();
 		CrucibleFile rightOldFile = rightAnnotationModel.getCrucibleFile();
-		try {
-			CrucibleFileInfo newLeftFileInfo = newReview.getFileByPermId(leftOldFile.getCrucibleFileInfo().getPermId());
-			CrucibleFileInfo newRightFileInfo = newReview.getFileByPermId(rightOldFile.getCrucibleFileInfo()
-					.getPermId());
-			if (newLeftFileInfo != null && newRightFileInfo != null) {
-				leftAnnotationModel.updateCrucibleFile(new CrucibleFile(newLeftFileInfo, leftOldFile.isOldFile()),
-						newReview);
-				rightAnnotationModel.updateCrucibleFile(new CrucibleFile(newRightFileInfo, rightOldFile.isOldFile()),
-						newReview);
-			}
-		} catch (ValueNotYetInitialized e) {
-			StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID, e.getMessage(), e));
+		CrucibleFileInfo newLeftFileInfo = newReview.getFileByPermId(leftOldFile.getCrucibleFileInfo().getPermId());
+		CrucibleFileInfo newRightFileInfo = newReview.getFileByPermId(rightOldFile.getCrucibleFileInfo().getPermId());
+		if (newLeftFileInfo != null && newRightFileInfo != null) {
+			leftAnnotationModel.updateCrucibleFile(new CrucibleFile(newLeftFileInfo, leftOldFile.isOldFile()),
+					newReview);
+			rightAnnotationModel.updateCrucibleFile(new CrucibleFile(newRightFileInfo, rightOldFile.isOldFile()),
+					newReview);
 		}
 	}
 
 	public void focusOnComment() {
+		focusOnComment(commentToFocus);
+	}
+
+	public void focusOnComment(VersionedComment commentToFocus) {
 		if (commentToFocus != null) {
-			//ignore general file comment
-			if (!commentToFocus.isFromLineInfo() && !commentToFocus.isToLineInfo()) {
-				return;
-			}
-			boolean isOldFile = commentToFocus.isFromLineInfo();
+			CrucibleFile leftFile = leftAnnotationModel.getCrucibleFile();
+			VersionedVirtualFile virtualLeft = leftFile.getSelectedFile();
 
-			int startLine = isOldFile ? commentToFocus.getFromStartLine() : commentToFocus.getToStartLine();
+			CrucibleFile rightFile = rightAnnotationModel.getCrucibleFile();
+			VersionedVirtualFile virtualRight = rightFile.getSelectedFile();
 
-			int endLine = isOldFile ? commentToFocus.getFromEndLine() : commentToFocus.getToEndLine();
+			MergeSourceViewer focusViewer = null;
+			Map<String, IntRanges> lineRanges = commentToFocus.getLineRanges();
+			if (lineRanges != null) {
+				IntRanges range;
+				if ((range = lineRanges.get(virtualLeft.getRevision())) != null) {
+					// get the correct listener (new file is left)
+					leftViewerListener.focusOnLines(range);
+					focusViewer = fLeftSourceViewer;
+				} else if ((range = lineRanges.get(virtualRight.getRevision())) != null) {
+					rightViewerListener.focusOnLines(range);
+					focusViewer = fRightSourceViewer;
+				}
+				setActiveViewer(focusViewer);
+			}
+		}
+	}
 
-			if (endLine == 0 || endLine > startLine) {
-				endLine = startLine;
-			}
-			if (startLine != 0) {
-				startLine--;
-			}
-			//get the correct listener (new file is left)
-			CrucibleViewerTextInputListener listener = isOldFile ? rightViewerListener : leftViewerListener;
-			listener.focusOnLines(startLine, endLine);
+	private void setActiveViewer(MergeSourceViewer focusViewer) {
+		try {
+			Method setActiveViewer = TextMergeViewer.class.getDeclaredMethod("setActiveViewer",
+					MergeSourceViewer.class, boolean.class);
+			setActiveViewer.setAccessible(true);
+			setActiveViewer.invoke(fMergeViewer, focusViewer, true);
+		} catch (Exception e) {
+			StatusHandler.log(new Status(IStatus.WARNING, CrucibleUiPlugin.PLUGIN_ID, "Failed to activate viewer", e));
 		}
 	}
 
@@ -577,6 +636,10 @@ public class CrucibleCompareAnnotationModel implements ICompareAnnotationModel {
 			return false;
 		}
 		return true;
+	}
+
+	private ISharedTextColors getSharedColors() {
+		return EditorsUI.getSharedTextColors();
 	}
 
 }

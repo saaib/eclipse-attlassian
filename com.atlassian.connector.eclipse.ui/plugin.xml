@@ -1,13 +1,4 @@
 <plugin>
-   <extension-point id="teamConnector" name="teamConnector" schema="schema/teamConnector.exsd"/>
-   <extension
-         point="org.eclipse.ui.preferencePages">
-      <page
-            class="com.atlassian.connector.eclipse.ui.preferences.AtlassianPreferencePage"
-            id="com.atlassian.connector.eclipse.ui.preferences.AtlassianPreferencePage"
-            name="Atlassian Connector">
-      </page>
-   </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
       <initializer
@@ -15,65 +6,10 @@
       </initializer>
    </extension>
   
-	<!-- intro page -->
-	
    <extension
-         point="org.eclipse.ui.intro.configExtension">
-      <configExtension
-            configId="org.eclipse.ui.intro.universalConfig"
-            content="$nl$/intro/overviewExtensionContent.xml">
-      </configExtension>
-      <configExtension
-            configId="org.eclipse.ui.intro.universalConfig"
-            content="$nl$/intro/whatsnewExtensionContent.xml">
-      </configExtension>
+         point="org.eclipse.ui.startup">
+      <startup
+            class="com.atlassian.connector.eclipse.ui.AtlassianUiPlugin$AtlassianUiPluginEarlyStartup">
+      </startup>
    </extension>
-   
-   	<extension point="org.eclipse.mylyn.tasks.core.templates">
-		<repository addAutomatically="true"
-			label="Atlassian Integrations Support" repositoryKind="jira" urlRepository="https://studio.atlassian.com/" />
-	</extension>
-   
-   <extension
-         point="org.eclipse.mylyn.tasks.bugs.support">
-	    <category description="Community supported open source projects"
-			id="org.eclipse.mylyn.tasks.bugs.openSource" name="Open Source Community"
-			weight="900" />
-      <provider
-            categoryId="org.eclipse.mylyn.tasks.bugs.openSource"
-            description="Support for Atlassian Integrations"
-            icon="atlassian_icon-32.png"
-            id="com.atlassian.connector.eclipse.ui.atlassian"
-            name="Atlassian"
-            url="http://support.atlassian.com/">
-      </provider>
-      <product
-            featureId="com.atlassian.connector.eclipse"
-            id="com.atlassian.connector"
-            name="Atlassian Connector for Eclipse"
-            providerId="com.atlassian.connector.eclipse.ui.atlassian"
-            url="http://www.atlassian.com/software/ideconnector/eclipse.jsp">
-      </product>
-      <mapping
-            namespace="com.atlassian.connector"
-            productId="com.atlassian.connector">
-         <repository
-               kind="jira"
-               url="https://studio.atlassian.com/">
-         </repository>
-         <property
-               name="product"
-               value="PLE">
-         </property>         
-      </mapping>
-      <mapping
-            namespace="com.atlassian.connector.commons"
-            productId="com.atlassian.connector">
-         <property
-               name="product"
-               value="ACC">
-         </property>
-      </mapping>
-   </extension>
-
 </plugin>

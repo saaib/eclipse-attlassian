@@ -14,36 +14,33 @@ package com.atlassian.connector.eclipse.internal.crucible.ui.operations;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.replay;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
+import com.atlassian.connector.eclipse.internal.core.client.HttpSessionCallbackImpl;
+import com.atlassian.connector.eclipse.internal.core.client.RemoteOperation;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClientData;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.ReviewCache;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
 import com.atlassian.theplugin.commons.VersionedVirtualFile;
 import com.atlassian.theplugin.commons.configuration.ConfigurationFactory;
 import com.atlassian.theplugin.commons.configuration.PluginConfigurationBean;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
 import com.atlassian.theplugin.commons.crucible.CrucibleServerFacadeImpl;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleSession;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfoImpl;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleUserCacheImpl;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomField;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFieldBean;
 import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralCommentBean;
 import com.atlassian.theplugin.commons.crucible.api.model.PermId;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-import com.atlassian.theplugin.commons.crucible.api.model.ReviewBean;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
-import com.atlassian.theplugin.commons.crucible.api.model.UserBean;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
-import com.atlassian.theplugin.commons.crucible.api.model.VersionedCommentBean;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiLoginException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
+import com.atlassian.theplugin.commons.util.LoggerImpl;
 
 import org.easymock.EasyMock;
 import org.eclipse.core.runtime.CoreException;
@@ -51,7 +48,6 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.text.source.LineRange;
-import org.eclipse.mylyn.commons.net.AbstractWebLocation;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 
 import java.lang.reflect.Field;
@@ -62,13 +58,13 @@ import junit.framework.TestCase;
 
 public class AddCommentRemoteOperationTest extends TestCase {
 
-	private static final User VALID_LOGIN = new UserBean("validLogin");
+	private static final User VALID_LOGIN = new User("validLogin");
 
 	private static final String VALID_PASSWORD = "validPassword";
 
 	private static final String VALID_URL = "http://localhost:9001";
 
-	private CrucibleServerFacade facade;
+	private CrucibleServerFacade2 facade;
 
 	private CrucibleSession crucibleSessionMock;
 
@@ -83,13 +79,14 @@ public class AddCommentRemoteOperationTest extends TestCase {
 
 		crucibleSessionMock = createMock(CrucibleSession.class);
 
-		facade = CrucibleServerFacadeImpl.getInstance();
+		facade = new CrucibleServerFacadeImpl(LoggerImpl.getInstance(), new CrucibleUserCacheImpl(),
+				new HttpSessionCallbackImpl());
 
 		try {
 			Field f = CrucibleServerFacadeImpl.class.getDeclaredField("sessions");
 			f.setAccessible(true);
 
-			((Map<String, CrucibleSession>) f.get(facade)).put(VALID_URL + VALID_LOGIN.getUserName() + VALID_PASSWORD,
+			((Map<String, CrucibleSession>) f.get(facade)).put(VALID_URL + VALID_LOGIN.getUsername() + VALID_PASSWORD,
 					crucibleSessionMock);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -110,15 +107,15 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralComment(EasyMock.isA(PermId.class), EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addGeneralComment(review, EasyMock.isA(Comment.class));
+		GeneralComment result = new GeneralComment(review, null);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -145,22 +142,21 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralCommentReply(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
-				EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addReply(review, EasyMock.isA(Comment.class));
+		GeneralComment parentComment = new GeneralComment(review, null);
+		parentComment.setPermId(new PermId("2"));
+		parentComment.setAuthor(user);
+		GeneralComment result = new GeneralComment(review, parentComment);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
-		GeneralCommentBean parentComment = new GeneralCommentBean();
-		parentComment.setPermId(new PermIdBean("2"));
-		parentComment.setAuthor(user);
 		parentComment.addReply(result);
 		EasyMock.expectLastCall().andReturn(result);
 		replay(crucibleSessionMock);
@@ -188,23 +184,23 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
 		CrucibleFile reviewFile = getMockReviewItem(false);
-		crucibleSessionMock.addVersionedComment(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
+		crucibleSessionMock.addVersionedComment(review, EasyMock.isA(PermId.class),
 				EasyMock.isA(VersionedComment.class));
-		VersionedCommentBean result = new VersionedCommentBean();
+		VersionedComment result = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
 		result.setReviewItemId(reviewFile.getCrucibleFileInfo().getPermId());
-		VersionedCommentBean parent = new VersionedCommentBean();
-		parent.setPermId(new PermIdBean("2"));
+		VersionedComment parent = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
+		parent.setPermId(new PermId("2"));
 		parent.setAuthor(user);
 		parent.addReply(result);
 		EasyMock.expectLastCall().andReturn(result);
@@ -232,17 +228,17 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
 		CrucibleFile reviewFile = getMockReviewItem(false);
-		crucibleSessionMock.addVersionedComment(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
+		crucibleSessionMock.addVersionedComment(review, EasyMock.isA(PermId.class),
 				EasyMock.isA(VersionedComment.class));
-		VersionedCommentBean result = new VersionedCommentBean();
+		VersionedComment result = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -270,17 +266,17 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
 		CrucibleFile reviewFile = getMockReviewItem(false);
-		crucibleSessionMock.addVersionedComment(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
+		crucibleSessionMock.addVersionedComment(review, EasyMock.isA(PermId.class),
 				EasyMock.isA(VersionedComment.class));
-		VersionedCommentBean result = new VersionedCommentBean();
+		VersionedComment result = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -319,17 +315,17 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
 		CrucibleFile reviewFile = getMockReviewItem(false);
-		crucibleSessionMock.addVersionedComment(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
+		crucibleSessionMock.addVersionedComment(review, EasyMock.isA(PermId.class),
 				EasyMock.isA(VersionedComment.class));
-		VersionedCommentBean result = new VersionedCommentBean();
+		VersionedComment result = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -339,8 +335,8 @@ public class AddCommentRemoteOperationTest extends TestCase {
 		result.setToLineInfo(true);
 		result.setToStartLine(1);
 		result.setToEndLine(21);
-		VersionedCommentBean parent = new VersionedCommentBean();
-		parent.setPermId(new PermIdBean("2"));
+		VersionedComment parent = new VersionedComment(review, reviewFile.getCrucibleFileInfo());
+		parent.setPermId(new PermId("2"));
 		parent.setAuthor(user);
 		parent.addReply(result);
 		EasyMock.expectLastCall().andReturn(result);
@@ -374,15 +370,15 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralComment(EasyMock.isA(PermId.class), EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addGeneralComment(review, EasyMock.isA(Comment.class));
+		GeneralComment result = new GeneralComment(review, null);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -412,15 +408,15 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralComment(EasyMock.isA(PermId.class), EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addGeneralComment(review, EasyMock.isA(Comment.class));
+		GeneralComment result = new GeneralComment(review, null);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -450,15 +446,15 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralComment(EasyMock.isA(PermId.class), EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addGeneralComment(review, EasyMock.isA(Comment.class));
+		GeneralComment result = new GeneralComment(review, null);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -493,21 +489,22 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addGeneralComment(EasyMock.isA(PermId.class), EasyMock.isA(GeneralComment.class));
-		GeneralCommentBean result = new GeneralCommentBean();
+		crucibleSessionMock.addGeneralComment(review, EasyMock.isA(Comment.class));
+		GeneralComment parentComment = new GeneralComment(review, null);
+		parentComment.setPermId(new PermId("2"));
+		parentComment.setAuthor(user);
+
+		GeneralComment result = new GeneralComment(review, parentComment);
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
-		GeneralCommentBean parentComment = new GeneralCommentBean();
-		parentComment.setPermId(new PermIdBean("2"));
-		parentComment.setAuthor(user);
 		parentComment.addReply(result);
 		EasyMock.expectLastCall().andReturn(result);
 		replay(crucibleSessionMock);
@@ -535,16 +532,16 @@ public class AddCommentRemoteOperationTest extends TestCase {
 			fail("recording mock failed for login");
 		}
 
-		ServerData serverCfg = prepareServerBean();
-		Review review = new ReviewBean(serverCfg.getUrl());
-		PermIdBean permId = new PermIdBean("1");
-		UserBean user = new UserBean("user");
+		ConnectionCfg serverCfg = prepareServerBean();
+		Review review = prepareReview(serverCfg);
+		PermId permId = new PermId("1");
+		User user = new User("user");
 		review.setPermId(permId);
 		MockCrucibleClient client = getMockClient(serverCfg);
 
-		crucibleSessionMock.addVersionedComment(EasyMock.isA(PermId.class), EasyMock.isA(PermId.class),
+		crucibleSessionMock.addVersionedComment(review, EasyMock.isA(PermId.class),
 				EasyMock.isA(VersionedComment.class));
-		VersionedCommentBean result = new VersionedCommentBean();
+		VersionedComment result = new VersionedComment(review, new CrucibleFileInfo(null, null, new PermId("cfi")));
 		result.setAuthor(user);
 		result.setMessage("resultMsg");
 		result.setPermId(permId);
@@ -575,23 +572,18 @@ public class AddCommentRemoteOperationTest extends TestCase {
 
 	private class MockCrucibleClient extends CrucibleClient {
 
-		private ServerData serverCfg;
+		private final ConnectionCfg serverCfg;
 
-		private CrucibleServerFacade facade;
+		private final CrucibleServerFacade2 facade;
 
-		public MockCrucibleClient(AbstractWebLocation location, ServerData serverCfg,
-				CrucibleServerFacade crucibleServer, CrucibleClientData data, ReviewCache cachedReviewManager) {
-			super(location, serverCfg, crucibleServer, data, cachedReviewManager);
-		}
-
-		public MockCrucibleClient(CrucibleServerFacade facade, ServerData serverCfg) {
-			super(null, serverCfg, facade, null, null);
+		public MockCrucibleClient(CrucibleServerFacade2 facade, ConnectionCfg serverCfg) {
+			super(null, serverCfg, facade, null, null, new HttpSessionCallbackImpl());
 			this.serverCfg = serverCfg;
 			this.facade = facade;
 		}
 
 		@Override
-		public <T> T execute(RemoteOperation<T> op) throws CoreException {
+		public <T> T execute(RemoteOperation<T, CrucibleServerFacade2> op) throws CoreException {
 			try {
 				return op.run(facade, serverCfg, op.getMonitor());
 			} catch (CrucibleLoginException e) {
@@ -606,24 +598,26 @@ public class AddCommentRemoteOperationTest extends TestCase {
 		}
 
 		@Override
-		public String getUserName() {
+		public String getUsername() {
 			return "user";
 		}
 	}
 
 	private CrucibleFile getMockReviewItem(boolean isOldFIle) {
-		return new CrucibleFile(new CrucibleFileInfoImpl(new VersionedVirtualFile("path", "1.0"),
-				new VersionedVirtualFile("path", "0.9"), new PermIdBean("permID")), isOldFIle);
+		return new CrucibleFile(new CrucibleFileInfo(new VersionedVirtualFile("path", "1.0"), new VersionedVirtualFile(
+				"path", "0.9"), new PermId("permID")), isOldFIle);
 	}
 
-	private MockCrucibleClient getMockClient(ServerData serverCfg) {
-		// ignore
+	private MockCrucibleClient getMockClient(ConnectionCfg serverCfg) {
 		return new MockCrucibleClient(facade, serverCfg);
 	}
 
-	private ServerData prepareServerBean() {
+	private ConnectionCfg prepareServerBean() {
 		repository = new TaskRepository(CrucibleCorePlugin.CONNECTOR_KIND, VALID_URL);
-		return new ServerData("myname", null, VALID_LOGIN.getUserName(), VALID_PASSWORD, VALID_URL);
+		return new ConnectionCfg("myname", VALID_URL, VALID_LOGIN.getUsername(), VALID_PASSWORD);
 	}
 
+	private Review prepareReview(ConnectionCfg connectionCfg) {
+		return new Review(connectionCfg.getUrl(), "prkey", new User("myauthor"), new User("mymoderator"));
+	}
 }

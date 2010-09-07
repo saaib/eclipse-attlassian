@@ -20,6 +20,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
 import org.eclipse.core.runtime.jobs.Job;
@@ -28,6 +29,7 @@ import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.mylyn.tasks.core.IRepositoryManager;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.osgi.util.NLS;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,12 +52,7 @@ public final class BuildPlanManager {
 
 		private final ArrayList<BambooBuild> builds;
 
-		private TaskRepository taskRepository;
-
-		public RefreshBuildsJob(String name) {
-			super(name);
-			this.builds = new ArrayList<BambooBuild>();
-		}
+		private final TaskRepository taskRepository;
 
 		public RefreshBuildsJob(String name, TaskRepository repository) {
 			super(name);
@@ -65,12 +62,14 @@ public final class BuildPlanManager {
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
-			try {
-				this.builds.addAll(clientManager.getClient(taskRepository).getBuilds(monitor, taskRepository, true));
-			} catch (CoreException e) {
-				return new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, NLS.bind(
-						"Update of builds from {0} failed", taskRepository.getRepositoryLabel()), e);
+			if (!taskRepository.isOffline()) {
+				BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
+				try {
+					this.builds.addAll(clientManager.getClient(taskRepository).getBuilds(monitor, taskRepository, true));
+				} catch (CoreException e) {
+					return new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, NLS.bind(
+							"Update of builds from {0} failed", taskRepository.getRepositoryLabel()), e);
+				}
 			}
 			return new Status(IStatus.OK, BambooCorePlugin.PLUGIN_ID, "Successfully retrieved Builds.");
 		}
@@ -90,8 +89,6 @@ public final class BuildPlanManager {
 
 		private final Map<TaskRepository, Collection<BambooBuild>> builds;
 
-		private MultiStatus result;
-
 		private final boolean manualRefresh;
 
 		private boolean isRunning;
@@ -104,32 +101,54 @@ public final class BuildPlanManager {
 
 		@Override
 		protected IStatus run(IProgressMonitor monitor) {
-			isRunning = true;
 			if (repositoryManager == null) {
 				StatusHandler.log(new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, "No repository manager found."));
 				return Status.OK_STATUS;
 			}
-			BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
-			Set<TaskRepository> repositories = repositoryManager.getRepositories(BambooCorePlugin.CONNECTOR_KIND);
-			result = new MultiStatus(BambooCorePlugin.PLUGIN_ID, 0, "Retrieval of Bamboo builds failed", null);
-			for (TaskRepository repository : repositories) {
-				//ignore disconnected repositories
-				if (!repository.isOffline()) {
-					BambooClient client = clientManager.getClient(repository);
-					try {
-						this.builds.put(repository, client.getBuilds(monitor, repository, manualRefresh
-								|| !firstScheduledSynchronizationDone));
-					} catch (CoreException e) {
-						Status status = new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, NLS.bind(
-								"Update of builds from {0} failed", repository.getRepositoryLabel()), e);
-						result.add(status);
-						StatusHandler.log(status);
+
+			isRunning = true;
+			try {
+				BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
+				Set<TaskRepository> repositories = repositoryManager.getRepositories(BambooCorePlugin.CONNECTOR_KIND);
+				boolean allSuccessful = true;
+
+				for (TaskRepository repository : repositories) {
+					if (monitor.isCanceled()) {
+						return Status.CANCEL_STATUS;
+					}
+
+					//ignore disconnected repositories
+					if (!repository.isOffline()) {
+						BambooClient client = clientManager.getClient(repository);
+						try {
+							this.builds.put(
+									repository,
+									client.getBuilds(monitor, repository, manualRefresh
+											|| !firstScheduledSynchronizationDone));
+						} catch (OperationCanceledException e) {
+							Status status = new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, NLS.bind(
+									"Update of builds from {0} failed", repository.getRepositoryLabel()), e);
+							StatusHandler.log(status);
+							allSuccessful = false;
+						} catch (CoreException e) {
+							Status status = new Status(IStatus.ERROR, BambooCorePlugin.PLUGIN_ID, NLS.bind(
+									"Update of builds from {0} failed", repository.getRepositoryLabel()), e);
+							StatusHandler.log(status);
+							allSuccessful = false;
+						}
 					}
 				}
+				firstScheduledSynchronizationDone = true;
+
+				if (monitor.isCanceled()) {
+					return Status.CANCEL_STATUS;
+				}
+
+				// compare new builds with current builds
+				processRefreshedBuildsAllRepositories(builds, manualRefresh, allSuccessful);
+			} finally {
+				isRunning = false;
 			}
-			firstScheduledSynchronizationDone = true;
-			handleFinishedRefreshAllBuildsJob(builds, manualRefresh);
-			isRunning = false;
 			return Status.OK_STATUS;
 		}
 
@@ -216,11 +235,17 @@ public final class BuildPlanManager {
 					break;
 				}
 			}
+
 			//process failed build retrieval
 			if (newBuild.getErrorMessage() != null && newBuild.getStatus() == BuildStatus.UNKNOWN) {
+				final TaskRepository bambooRepo = repositoryManager.getRepository(BambooCorePlugin.CONNECTOR_KIND,
+						newBuild.getServerUrl());
+
+				final String repoName = bambooRepo != null ? bambooRepo.getRepositoryLabel() : newBuild.getServer()
+						.getUrl();
+
 				//log error
-				errorLog.add(newBuild.getPlanKey() + " - " + newBuild.getErrorMessage() + "["
-						+ newBuild.getServer().getName() + "]");
+				errorLog.add(newBuild.getPlanKey() + " - " + newBuild.getErrorMessage() + "[" + repoName + "]");
 				//of there is an old build, used cached information for the failed new build retrieval
 				if (correspondingOldBuild != null) {
 					if (!cachedToAdd.containsKey(correspondingOldBuild.getPlanKey())) {
@@ -248,12 +273,13 @@ public final class BuildPlanManager {
 		changedBuilds2.put(taskRepository, changedBuilds);
 	}
 
+	@Nullable
 	private BambooBuild createCachedBuild(BambooBuild oldBuild, BambooBuild newBuild) {
 		try {
 			return new BambooBuildInfo(oldBuild.getPlanKey(), oldBuild.getPlanName(), oldBuild.getServer(),
 					oldBuild.getPollingTime(), oldBuild.getProjectName(), oldBuild.getEnabled(), oldBuild.getNumber(),
-					oldBuild.getStatus(), oldBuild.getReason(), oldBuild.getStartDate(), null, null,
-					oldBuild.getTestsPassed(), oldBuild.getTestsFailed(), oldBuild.getCompletionDate(),
+					oldBuild.getStatus(), oldBuild.getPlanState(), oldBuild.getReason(), oldBuild.getStartDate(), null,
+					null, oldBuild.getTestsPassed(), oldBuild.getTestsFailed(), oldBuild.getCompletionDate(),
 					newBuild.getErrorMessage(), oldBuild.getException(), oldBuild.getRelativeBuildDate(),
 					oldBuild.getDurationDescription(), oldBuild.getCommiters());
 		} catch (UnsupportedOperationException e) {
@@ -270,12 +296,13 @@ public final class BuildPlanManager {
 			getRefreshedBuildsDiff(newBuilds, taskRepository, changedBuilds, errorLog);
 		}
 
-		notifyListeners(oldBuilds, changedBuilds, errorLog, true);
+		notifyListeners(oldBuilds, changedBuilds, errorLog, true, true);
 	}
 
 	private void notifyListeners(Map<TaskRepository, Collection<BambooBuild>> oldBuilds,
-			Map<TaskRepository, Collection<BambooBuild>> changedBuilds, List<String> errorLog, boolean forcedRefresh) {
-		boolean failed = errorLog == null ? false : errorLog.size() > 0;
+			Map<TaskRepository, Collection<BambooBuild>> changedBuilds, List<String> errorLog, boolean forcedRefresh,
+			boolean allUpdated) {
+		boolean failed = (errorLog == null ? false : errorLog.size() > 0) || !allUpdated;
 		BuildsChangedEvent event = new BuildsChangedEvent(changedBuilds, subscribedBuilds, oldBuilds, errorLog,
 				forcedRefresh, failed);
 
@@ -284,8 +311,7 @@ public final class BuildPlanManager {
 			listener.buildsUpdated(event);
 		}
 		//send failed refreshes to error log
-		if (failed && errorLog != null) {
-
+		if (failed && errorLog != null && errorLog.size() > 0) {
 			if (forcedRefresh) {
 				MultiStatus refreshStatus = new MultiStatus(BambooCorePlugin.PLUGIN_ID, 0,
 						"Error while refreshing builds", null);
@@ -307,11 +333,11 @@ public final class BuildPlanManager {
 				subscribedBuilds.remove(repository);
 			}
 		}
-		notifyListeners(oldBuilds, null, null, false);
+		notifyListeners(oldBuilds, null, null, false, true);
 	}
 
 	private void processRefreshedBuildsAllRepositories(Map<TaskRepository, Collection<BambooBuild>> newBuilds,
-			boolean forcedRefresh) {
+			boolean forcedRefresh, boolean allUpdated) {
 		Map<TaskRepository, Collection<BambooBuild>> oldBuilds = new HashMap<TaskRepository, Collection<BambooBuild>>(
 				subscribedBuilds);
 		Map<TaskRepository, Collection<BambooBuild>> changedBuilds = new HashMap<TaskRepository, Collection<BambooBuild>>();
@@ -322,7 +348,7 @@ public final class BuildPlanManager {
 			}
 		}
 
-		notifyListeners(oldBuilds, changedBuilds, errorLog, forcedRefresh);
+		notifyListeners(oldBuilds, changedBuilds, errorLog, forcedRefresh, allUpdated);
 	}
 
 	public Job initializeScheduler(IRepositoryManager manager) {
@@ -350,12 +376,6 @@ public final class BuildPlanManager {
 			}
 		}
 		return scheduledRefreshBuildsForAllRepositoriesJob;
-	}
-
-	public void handleFinishedRefreshAllBuildsJob(Map<TaskRepository, Collection<BambooBuild>> builds,
-			boolean forcedRefresh) {
-		//compare new builds with current builds
-		processRefreshedBuildsAllRepositories(builds, forcedRefresh);
 	}
 
 	public Job refreshAllBuilds() {

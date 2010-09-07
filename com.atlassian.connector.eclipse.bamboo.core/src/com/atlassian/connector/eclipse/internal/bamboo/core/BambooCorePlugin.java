@@ -11,15 +11,24 @@
 
 package com.atlassian.connector.eclipse.internal.bamboo.core;
 
+import com.atlassian.connector.eclipse.core.monitoring.Monitoring;
+import com.atlassian.connector.eclipse.internal.bamboo.core.BambooUtil.BuildChangeAction;
 import com.atlassian.connector.eclipse.internal.core.AtlassianLogger;
+import com.atlassian.theplugin.commons.bamboo.BambooBuild;
+import com.atlassian.theplugin.commons.bamboo.BuildStatus;
 import com.atlassian.theplugin.commons.util.LoggerImpl;
 
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Plugin;
-import org.eclipse.core.runtime.Preferences.IPropertyChangeListener;
-import org.eclipse.core.runtime.Preferences.PropertyChangeEvent;
+import org.eclipse.core.runtime.preferences.DefaultScope;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences;
+import org.eclipse.core.runtime.preferences.InstanceScope;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences.IPreferenceChangeListener;
+import org.eclipse.core.runtime.preferences.IEclipsePreferences.PreferenceChangeEvent;
+import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.osgi.framework.BundleContext;
+import org.osgi.service.prefs.BackingStoreException;
 
 import java.io.File;
 
@@ -42,6 +51,8 @@ public class BambooCorePlugin extends Plugin {
 
 	private static BuildPlanManager buildPlanManager;
 
+	private static Monitoring monitoring = null;
+
 	public BambooCorePlugin() {
 		// make sure that we have the logging going to the eclipse log
 		LoggerImpl.setInstance(new AtlassianLogger());
@@ -51,17 +62,69 @@ public class BambooCorePlugin extends Plugin {
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 		plugin = this;
-		plugin.getPluginPreferences().setDefault(BambooConstants.PREFERENCE_REFRESH_INTERVAL,
-				BambooConstants.DEFAULT_REFRESH_INTERVAL);
-		plugin.getPluginPreferences().setDefault(BambooConstants.PREFERENCE_AUTO_REFRESH,
-				BambooConstants.DEFAULT_AUTO_REFRESH);
+
+		IEclipsePreferences preferences = new DefaultScope().getNode(BambooCorePlugin.PLUGIN_ID);
+		preferences.putInt(BambooConstants.PREFERENCE_REFRESH_INTERVAL, BambooConstants.DEFAULT_REFRESH_INTERVAL);
+		preferences.putBoolean(BambooConstants.PREFERENCE_AUTO_REFRESH, BambooConstants.DEFAULT_AUTO_REFRESH);
+
 		buildPlanManager = new BuildPlanManager();
-		plugin.getPluginPreferences().addPropertyChangeListener(new IPropertyChangeListener() {
-			public void propertyChange(PropertyChangeEvent event) {
+
+		preferences = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID);
+		preferences.addPreferenceChangeListener(new IPreferenceChangeListener() {
+			public void preferenceChange(PreferenceChangeEvent event) {
+				if (event.getKey().equals(BambooConstants.PREFERENCE_AUTO_REFRESH) && BambooCorePlugin.isAutoRefresh()) {
+					buildPlanManager.refreshAllBuilds();
+				}
+
 				buildPlanManager.reInitializeScheduler();
 			}
 		});
 
+		buildPlanManager.addBuildsChangedListener(new BuildsChangedListener() {
+
+			public void buildsUpdated(BuildsChangedEvent event) {
+
+				BambooUtil.runActionForChangedBuild(event, new BuildChangeAction() {
+
+					public void run(BambooBuild build, TaskRepository repository) {
+
+						if (build.getStatus() == BuildStatus.FAILURE) {
+
+							IEclipsePreferences preferences = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID);
+							boolean isPlaySound = preferences.getBoolean(BambooConstants.PREFERENCE_PLAY_SOUND,
+									BambooConstants.DEFAULT_PLAY_SOUND);
+
+							// @todo jjaroczynski - sound stuff should be in UI plugin, not in core!!!
+							if (isPlaySound) {
+								String sound = preferences.get(BambooConstants.PREFERENCE_BUILD_SOUND, "");
+
+								if (sound != null && sound.length() > 0) {
+									// play sound
+//									InputStream in;
+//									try {
+//										in = new FileInputStream(sound);
+//										sun.audio.AudioStream as = new sun.audio.AudioStream(in);
+//										sun.audio.AudioPlayer.player.start(as);
+//									} catch (FileNotFoundException e) {
+//										StatusHandler.log(new Status(IStatus.ERROR, PLUGIN_ID,
+//												"Cannot find audio file to play", e));
+//									} catch (IOException e) {
+//										StatusHandler.log(new Status(IStatus.ERROR, PLUGIN_ID,
+//												"Cannot play audio file", e));
+//									}
+								}
+							}
+						}
+					}
+				});
+			}
+		});
+
+		try {
+			preferences.flush();
+		} catch (BackingStoreException e) {
+			// TODO: decide if we want to swallow it here 
+		}
 	}
 
 	@Override
@@ -101,21 +164,40 @@ public class BambooCorePlugin extends Plugin {
 	}
 
 	public static int getRefreshIntervalMinutes() {
-		int minutes = plugin.getPluginPreferences().getInt(BambooConstants.PREFERENCE_REFRESH_INTERVAL);
+		int minutes = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID).getInt(
+				BambooConstants.PREFERENCE_REFRESH_INTERVAL, BambooConstants.DEFAULT_REFRESH_INTERVAL);
 		return minutes;
 	}
 
 	public static void setRefreshIntervalMinutes(int minutes) {
-		plugin.getPluginPreferences().setValue(BambooConstants.PREFERENCE_REFRESH_INTERVAL, minutes);
-		plugin.savePluginPreferences();
+		IEclipsePreferences preferences = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID);
+		preferences.putInt(BambooConstants.PREFERENCE_REFRESH_INTERVAL, minutes);
+		try {
+			preferences.flush();
+		} catch (BackingStoreException e) {
+			// TODO: 
+		}
 	}
 
 	public static void toggleAutoRefresh() {
-		plugin.getPluginPreferences().setValue(BambooConstants.PREFERENCE_AUTO_REFRESH, !isAutoRefresh());
-		plugin.savePluginPreferences();
+		IEclipsePreferences preferences = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID);
+		preferences.putBoolean(BambooConstants.PREFERENCE_AUTO_REFRESH, !isAutoRefresh());
+		try {
+			preferences.flush();
+		} catch (BackingStoreException e) {
+			// TODO: decide if we want to swallow it
+		}
 	}
 
 	public static boolean isAutoRefresh() {
-		return plugin.getPluginPreferences().getBoolean(BambooConstants.PREFERENCE_AUTO_REFRESH);
+		IEclipsePreferences preferences = new InstanceScope().getNode(BambooCorePlugin.PLUGIN_ID);
+		return preferences.getBoolean(BambooConstants.PREFERENCE_AUTO_REFRESH, BambooConstants.DEFAULT_AUTO_REFRESH);
+	}
+
+	public static Monitoring getMonitoring() {
+		if (monitoring == null) {
+			monitoring = new Monitoring(PLUGIN_ID);
+		}
+		return monitoring;
 	}
 }

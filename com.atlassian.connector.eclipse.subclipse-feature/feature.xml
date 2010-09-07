@@ -2,9 +2,9 @@
 <feature
       id="com.atlassian.connector.eclipse.subclipse"
       label="%featureName"
-      version="1.1.0.qualifier"
+      version="2.3.0.qualifier"
       provider-name="%providerName"
-      plugin="com.atlassian.connector.eclipse.ui">
+      plugin="com.atlassian.connector.eclipse.branding.ui">
 
    <description url="http://atlassian.com">
       %description
@@ -18,20 +18,17 @@
       %license
    </license>
 
-   <url>
-      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
-   </url>
-
    <requires>
       <import plugin="org.eclipse.ui"/>
       <import plugin="org.eclipse.core.runtime"/>
       <import plugin="com.atlassian.connector.eclipse.ui"/>
-      <import plugin="org.eclipse.mylyn.commons.core"/>
+      <import plugin="com.atlassian.connector.eclipse.team.ui"/>
+      <import plugin="org.eclipse.mylyn.commons.core" version="3.2.0" match="compatible"/>
       <import plugin="org.eclipse.team.core"/>
       <import plugin="org.eclipse.core.filesystem"/>
       <import plugin="org.eclipse.ui.ide"/>
       <import plugin="org.eclipse.core.resources"/>
-      <import feature="com.atlassian.connector.eclipse.crucible" version="1.1.0.qualifier" match="equivalent"/>
+      <import feature="com.atlassian.connector.eclipse.crucible" version="2.3.0.qualifier" match="equivalent"/>
       <import plugin="org.tigris.subversion.subclipse.core" version="1.6.0" match="compatible"/>
       <import plugin="org.tigris.subversion.subclipse.ui" version="1.6.0" match="compatible"/>
       <import feature="org.tigris.subversion.subclipse" version="1.6.0" match="compatible"/>
@@ -40,6 +37,13 @@
 
    <plugin
          id="com.atlassian.connector.eclipse.subclipse.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.subclipse.core"
          download-size="0"
          install-size="0"
          version="0.0.0"

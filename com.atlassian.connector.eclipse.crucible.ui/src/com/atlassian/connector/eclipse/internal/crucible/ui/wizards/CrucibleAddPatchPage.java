@@ -11,18 +11,19 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedRepository;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
-import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleRepositoriesContentProvider;
 import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleRepositoriesLabelProvider;
+import com.atlassian.theplugin.commons.crucible.api.model.Repository;
 
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
+import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.jface.wizard.WizardPage;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.swt.SWT;
@@ -51,35 +52,50 @@ public class CrucibleAddPatchPage extends WizardPage {
 
 	private String selectedRepository;
 
-	private Set<CrucibleCachedRepository> cachedRepositories;
+	private Set<Repository> cachedRepositories;
 
 	private ComboViewer comboViewer;
 
 	private boolean includePatch = false;
 
-	private final CrucibleReviewWizard wizard;
-
 	protected boolean patchPasted = false;
 
-	public CrucibleAddPatchPage(TaskRepository repository, CrucibleReviewWizard wizard) {
+	public CrucibleAddPatchPage(TaskRepository repository) {
 		super("cruciblePatch"); //$NON-NLS-1$
 		setTitle("Add Patch to Review");
 		setDescription("Attach a patch from the clipboard to the review.");
 		this.taskRepository = repository;
-		this.wizard = wizard;
 	}
 
 	public void createControl(Composite parent) {
-		Composite composite = new Composite(parent, SWT.NULL);
+		Composite composite = new Composite(parent, SWT.NONE);
 		composite.setLayout(GridLayoutFactory.fillDefaults().numColumns(2).equalWidth(false).margins(5, 5).create());
 
 		final Button includePatchButton = new Button(composite, SWT.CHECK);
 		includePatchButton.setText("Include this Patch from the clipboard in the review:");
-		GridDataFactory.fillDefaults().applyTo(includePatchButton);
+		GridDataFactory.fillDefaults().span(2, 1).applyTo(includePatchButton);
 		includePatchButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
 				includePatch = includePatchButton.getSelection();
+				if (includePatch) {
+					if (!CrucibleUiUtil.hasCachedData(taskRepository)) {
+						CrucibleUiUtil.updateTaskRepositoryCache(taskRepository, getContainer(),
+								CrucibleAddPatchPage.this);
+					}
+					//copy content from clipboard, only if not already done
+					Clipboard clipboard = new Clipboard(Display.getDefault());
+					Object patch = clipboard.getContents(TextTransfer.getInstance());
+					if (patch != null && patch instanceof String && !patchPasted) {
+						patchText.setText((String) patch);
+						patchPasted = true;
+					}
+					if (cachedRepositories == null) {
+						cachedRepositories = CrucibleUiUtil.getCachedRepositories(taskRepository);
+					}
+					comboViewer.setInput(cachedRepositories);
+				}
+
 				validatePage();
 			}
 		});
@@ -93,14 +109,15 @@ public class CrucibleAddPatchPage extends WizardPage {
 		GridDataFactory.fillDefaults().grab(false, false).applyTo(label);
 		comboViewer = new ComboViewer(composite);
 		comboViewer.getCombo().setText("Select Repository");
-		comboViewer.setContentProvider(new CrucibleRepositoriesContentProvider());
+		comboViewer.setContentProvider(new ArrayContentProvider());
 		comboViewer.setLabelProvider(new CrucibleRepositoriesLabelProvider());
+		comboViewer.setSorter(new ViewerSorter());
 		comboViewer.addSelectionChangedListener(new ISelectionChangedListener() {
 			public void selectionChanged(SelectionChangedEvent event) {
 				if (comboViewer.getSelection() instanceof IStructuredSelection) {
 					Object selected = ((IStructuredSelection) comboViewer.getSelection()).getFirstElement();
 					if (cachedRepositories.contains(selected)) {
-						selectedRepository = ((CrucibleCachedRepository) selected).getName();
+						selectedRepository = ((Repository) selected).getName();
 					}
 				}
 				validatePage();
@@ -118,7 +135,7 @@ public class CrucibleAddPatchPage extends WizardPage {
 		updateData.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				wizard.updateCache(CrucibleAddPatchPage.this);
+				CrucibleUiUtil.updateTaskRepositoryCache(taskRepository, getContainer(), CrucibleAddPatchPage.this);
 			}
 		});
 
@@ -166,33 +183,4 @@ public class CrucibleAddPatchPage extends WizardPage {
 		return selectedRepository;
 	}
 
-	@Override
-	public void setVisible(boolean visible) {
-		super.setVisible(visible);
-		if (visible) {
-			Display.getDefault().asyncExec(new Runnable() {
-				public void run() {
-					if (!CrucibleUiUtil.hasCachedData(taskRepository)) {
-						wizard.updateCache(CrucibleAddPatchPage.this);
-					}
-					//copy content from clipboard, only if not already done
-					Clipboard clipboard = new Clipboard(Display.getDefault());
-					Object patch = clipboard.getContents(TextTransfer.getInstance());
-					if (patch != null && patch instanceof String && !patchPasted) {
-						patchText.setText((String) patch);
-						patchPasted = true;
-					}
-					if (cachedRepositories == null) {
-						cachedRepositories = CrucibleUiUtil.getCachedRepositories(taskRepository);
-					}
-					comboViewer.setInput(cachedRepositories);
-					validatePage();
-				}
-			});
-		} else {
-			setErrorMessage(null);
-			setPageComplete(true);
-			getContainer().updateButtons();
-		}
-	}
 }

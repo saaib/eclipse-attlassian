@@ -11,8 +11,7 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.commons;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedProject;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
 
 import org.eclipse.jface.viewers.LabelProvider;
 
@@ -24,10 +23,8 @@ import org.eclipse.jface.viewers.LabelProvider;
 public class CrucibleProjectsLabelProvider extends LabelProvider {
 	@Override
 	public String getText(Object element) {
-		if (element instanceof CrucibleCachedProject) {
-			return ((CrucibleCachedProject) element).getName();
-		} else if (element instanceof CrucibleProject) {
-			return ((CrucibleProject) element).getName();
+		if (element instanceof BasicProject) {
+			return ((BasicProject) element).getName();
 		}
 		return super.getText(element);
 	}

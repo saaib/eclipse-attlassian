@@ -29,8 +29,9 @@ import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.ShowBuildLogAc
 import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.ShowTestResultsAction;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.ToggleAutoRefreshAction;
 import com.atlassian.theplugin.commons.bamboo.BambooBuild;
-import com.atlassian.theplugin.commons.bamboo.BuildStatus;
+import com.atlassian.theplugin.commons.bamboo.PlanState;
 import com.atlassian.theplugin.commons.util.DateUtil;
+import com.atlassian.theplugin.commons.util.MiscUtil;
 
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.core.runtime.IStatus;
@@ -49,7 +50,6 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TreeColumnViewerLabelProvider;
-import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.TreeViewerColumn;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.mylyn.commons.core.StatusHandler;
@@ -63,6 +63,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StackLayout;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
@@ -81,16 +82,15 @@ import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.actions.BaseSelectionListenerAction;
+import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.progress.IWorkbenchSiteProgressService;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -104,6 +104,10 @@ public class BambooView extends ViewPart {
 
 	private static final String OPEN_REPOSITORY_VIEW_LINK = "Open the Task Repositories view";
 
+	private static final String REFRESH_BAMBOO_VIEW_LINK = "Refresh Bamboo View manually";
+
+	private static final String ENABLE_AUTOMATIC_REFRESH = "Enable";
+
 	private class OpenInBrowserAction extends BaseSelectionListenerAction {
 		public OpenInBrowserAction() {
 			super(null);
@@ -116,8 +120,8 @@ public class BambooView extends ViewPart {
 				IStructuredSelection selection = (IStructuredSelection) s;
 				for (Iterator<?> it = selection.iterator(); it.hasNext();) {
 					Object selected = it.next();
-					if (selected instanceof BambooBuild) {
-						String url = BambooUtil.getUrlFromBuild((BambooBuild) selected);
+					if (selected instanceof EclipseBambooBuild) {
+						String url = BambooUtil.getUrlFromBuild(((EclipseBambooBuild) selected).getBuild());
 						TasksUiUtil.openUrl(url);
 					}
 				}
@@ -130,7 +134,7 @@ public class BambooView extends ViewPart {
 				try {
 					Iterator<?> it = selection.iterator();
 					while (it.hasNext()) {
-						((BambooBuild) it.next()).getNumber();
+						((EclipseBambooBuild) it.next()).getBuild().getNumber();
 					}
 					return true;
 				} catch (UnsupportedOperationException e) {
@@ -151,11 +155,7 @@ public class BambooView extends ViewPart {
 		}
 
 		public Object[] getElements(Object inputElement) {
-			List<BambooBuild> allBuilds = new ArrayList<BambooBuild>();
-			for (Collection<BambooBuild> collection : builds.values()) {
-				allBuilds.addAll(collection);
-			}
-			return allBuilds.toArray();
+			return builds.toArray();
 		}
 
 		public Object getParent(Object element) {
@@ -179,9 +179,9 @@ public class BambooView extends ViewPart {
 		NONE, PASSED, FAILED, ERROR,
 	};
 
-	private TreeViewer buildViewer;
+	private BuildTreeViewer buildViewer;
 
-	private Map<TaskRepository, Collection<BambooBuild>> builds;
+	private Collection<EclipseBambooBuild> builds;
 
 	final Image buildFailedImage = CommonImages.getImage(BambooImages.VIEW_STATUS_FAILED);
 
@@ -232,7 +232,7 @@ public class BambooView extends ViewPart {
 	private OpenBambooEditorAction openBambooEditorAction;
 
 	public BambooView() {
-		builds = new HashMap<TaskRepository, Collection<BambooBuild>>();
+		builds = MiscUtil.buildArrayList();
 	}
 
 	@Override
@@ -266,7 +266,7 @@ public class BambooView extends ViewPart {
 			public void buildsUpdated(final BuildsChangedEvent event) {
 				Display.getDefault().asyncExec(new Runnable() {
 					public void run() {
-						builds = new HashMap<TaskRepository, Collection<BambooBuild>>(event.getAllBuilds());
+						builds = toEclipseBambooBuildCollection(event.getAllBuilds());
 						refresh(event.isForcedRefresh(), event.isFailed());
 					}
 				});
@@ -276,9 +276,26 @@ public class BambooView extends ViewPart {
 		buildPlanManager.addBuildsChangedListener(buildsChangedListener);
 		//if the initial synchronization is already finished, get the cache data
 		if (buildPlanManager.isFirstScheduledSynchronizationDone()) {
-			builds = buildPlanManager.getSubscribedBuilds();
+			builds = toEclipseBambooBuildCollection(buildPlanManager.getSubscribedBuilds());
 			refresh(false, false);
 		}
+	}
+
+	private Collection<EclipseBambooBuild> toEclipseBambooBuildCollection(
+			Map<TaskRepository, Collection<BambooBuild>> buildsPerTaskRepo) {
+		Collection<EclipseBambooBuild> res = MiscUtil.buildArrayList();
+		for (TaskRepository taskRepository : buildsPerTaskRepo.keySet()) {
+			// we are checking offline mode here, as BuildPlanManager passes here also builds for disconnected repos
+			// BuildPlanManager is so complicated (unnecessarily) that I don't dare now to refactor it  
+			if (!taskRepository.isOffline()) {
+				Collection<BambooBuild> bambooBuilds = buildsPerTaskRepo.get(taskRepository);
+				for (BambooBuild bambooBuild : bambooBuilds) {
+					res.add(new EclipseBambooBuild(bambooBuild, taskRepository));
+				}
+			}
+		}
+		return res;
+
 	}
 
 	@Override
@@ -287,27 +304,36 @@ public class BambooView extends ViewPart {
 			BambooCorePlugin.getBuildPlanManager().removeBuildsChangedListener(buildsChangedListener);
 			buildsChangedListener = null;
 		}
+
+		buildViewer.dispose();
+	}
+
+	private static class BambooColumnProvider extends ColumnLabelProvider {
+		@Override
+		public Font getFont(Object element) {
+			return BambooUiUtil.getFontForBuildStatus(element);
+		}
 	}
 
 	private void createTreeViewer(Composite parent) {
-		buildViewer = new TreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.FULL_SELECTION);
+		buildViewer = new BuildTreeViewer(parent, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.FULL_SELECTION);
 		buildViewer.setContentProvider(new BuildContentProvider());
 		buildViewer.setUseHashlookup(true);
 
-		TreeViewerColumn column = new TreeViewerColumn(buildViewer, SWT.NONE);
-		column.getColumn().setText("Build");
-		column.getColumn().setWidth(300);
-		column.setLabelProvider(new TreeColumnViewerLabelProvider(new DecoratingLabelProvider(new BuildLabelProvider(),
-				PlatformUI.getWorkbench().getDecoratorManager().getLabelDecorator())));
+		final TreeViewerColumn columnName = new TreeViewerColumn(buildViewer, SWT.NONE);
+		columnName.getColumn().setText("Build");
+		columnName.getColumn().setWidth(300);
+		columnName.setLabelProvider(new TreeColumnViewerLabelProvider(new DecoratingLabelProvider(
+				new BuildLabelProvider(), PlatformUI.getWorkbench().getDecoratorManager().getLabelDecorator())));
 
-		column = new TreeViewerColumn(buildViewer, SWT.NONE);
+		TreeViewerColumn column = new TreeViewerColumn(buildViewer, SWT.NONE);
 		column.getColumn().setText("Status");
 		column.getColumn().setWidth(350);
-		column.setLabelProvider(new ColumnLabelProvider() {
+		column.setLabelProvider(new BambooColumnProvider() {
 			@Override
 			public String getText(Object element) {
-				if (element instanceof BambooBuild) {
-					BambooBuild build = ((BambooBuild) element);
+				if (element instanceof EclipseBambooBuild) {
+					BambooBuild build = ((EclipseBambooBuild) element).getBuild();
 					StringBuilder builder = new StringBuilder();
 					int totalTests = build.getTestsFailed() + build.getTestsPassed();
 					try {
@@ -340,20 +366,44 @@ public class BambooView extends ViewPart {
 		column = new TreeViewerColumn(buildViewer, SWT.NONE);
 		column.getColumn().setText("Last Built");
 		column.getColumn().setWidth(200);
-		column.setLabelProvider(new ColumnLabelProvider() {
+		column.setLabelProvider(new BambooColumnProvider() {
 			@Override
 			public String getText(Object element) {
-				if (element instanceof BambooBuild) {
-					BambooBuild build = ((BambooBuild) element);
+				if (element instanceof EclipseBambooBuild) {
+					BambooBuild build = ((EclipseBambooBuild) element).getBuild();
 					try {
 						build.getNumber();
 					} catch (UnsupportedOperationException e) {
 						return ("N/A");
 					}
-					return DateUtil.getRelativeBuildTime(build.getCompletionDate());
+					return DateUtil.getRelativePastDate(build.getCompletionDate());
 				}
 				return super.getText(element);
 			}
+
+		});
+
+		column = new TreeViewerColumn(buildViewer, SWT.NONE);
+		column.getColumn().setText("State");
+		column.getColumn().setWidth(60);
+		column.setLabelProvider(new BambooColumnProvider() {
+			@Override
+			public String getText(Object element) {
+				if (element instanceof EclipseBambooBuild) {
+					final BambooBuild build = ((EclipseBambooBuild) element).getBuild();
+					final PlanState planState = build.getPlanState();
+					if (planState != null) {
+						switch (planState) {
+						case BUILDING:
+							return "Building";
+						case IN_QUEUE:
+							return "In queue";
+						}
+					}
+				}
+				return null;
+			}
+
 		});
 
 		final BambooBuildViewerComparator comparator = new BambooBuildViewerComparator();
@@ -394,11 +444,24 @@ public class BambooView extends ViewPart {
 		gridData.verticalIndent = 5;
 		link.setBackground(parent.getDisplay().getSystemColor(SWT.COLOR_LIST_BACKGROUND));
 		link.setLayoutData(gridData);
-		link.setText("Initializing view...");
+
+		if (BambooCorePlugin.isAutoRefresh()) {
+			link.setText("Initializing view...");
+		} else {
+			link.setText(NLS.bind("Automatic refresh is disabled. <a>{0}</a> it or <a>{1}</a>.",
+					ENABLE_AUTOMATIC_REFRESH, REFRESH_BAMBOO_VIEW_LINK));
+		}
+
 		link.addListener(SWT.Selection, new Listener() {
 			public void handleEvent(Event event) {
 				String link = event.text;
-				if (link.equals(CREATE_A_NEW_REPOSITORY_LINK)) {
+				if (link.equals(REFRESH_BAMBOO_VIEW_LINK)) {
+					refreshBuilds();
+				} else if (link.equals(ENABLE_AUTOMATIC_REFRESH)) {
+					PreferencesUtil.createPreferenceDialogOn(getSite().getShell(),
+							"com.atlassian.connector.eclipse.bamboo.ui.preferences.BambooPreferencePage", null, null)
+							.open();
+				} else if (link.equals(CREATE_A_NEW_REPOSITORY_LINK)) {
 					new RepositoryConfigurationAction().run();
 				} else if (linkedRepositories != null) {
 					TaskRepository repository = linkedRepositories.get(link);
@@ -411,7 +474,7 @@ public class BambooView extends ViewPart {
 					Display.getDefault().asyncExec(new Runnable() {
 						public void run() {
 							try {
-								getSite().getPage().showView(ITasksUiConstants.ID_VIEW_TASKS);
+								getSite().getPage().showView(ITasksUiConstants.ID_VIEW_REPOSITORIES);
 							} catch (PartInitException e) {
 								StatusHandler.log(new Status(IStatus.ERROR, BambooUiPlugin.PLUGIN_ID,
 										"Failed to show Task Repositories View"));
@@ -424,6 +487,9 @@ public class BambooView extends ViewPart {
 	}
 
 	private void fillLink(Set<TaskRepository> repositories) {
+		if (link.isDisposed()) {
+			return;
+		}
 		if (repositories == null || repositories.isEmpty()) {
 			link.setText(NLS.bind("No Bamboo repositories defined, <a>{0}</a>...", CREATE_A_NEW_REPOSITORY_LINK));
 		} else {
@@ -501,7 +567,7 @@ public class BambooView extends ViewPart {
 
 		openInBrowserAction = new OpenInBrowserAction();
 		openInBrowserAction.setEnabled(false);
-		openInBrowserAction.setText("Open with Browser");
+		openInBrowserAction.setText(BambooConstants.OPEN_WITH_BROWSER_ACTION_LABEL);
 		openInBrowserAction.setImageDescriptor(CommonImages.BROWSER_SMALL);
 		buildViewer.addSelectionChangedListener(openInBrowserAction);
 
@@ -525,7 +591,7 @@ public class BambooView extends ViewPart {
 		newTaskFromFailedBuildAction.setEnabled(false);
 		buildViewer.addSelectionChangedListener(newTaskFromFailedBuildAction);
 
-		runBuildAction = new RunBuildAction();
+		runBuildAction = new RunBuildAction(refreshAction);
 		runBuildAction.setEnabled(false);
 		buildViewer.addSelectionChangedListener(runBuildAction);
 
@@ -548,31 +614,8 @@ public class BambooView extends ViewPart {
 	}
 
 	private void refresh(boolean forcedRefresh, boolean failed) {
-		boolean hasSubscriptions = false;
-		ViewStatus status = ViewStatus.NONE;
-		for (Collection<BambooBuild> repoBuilds : builds.values()) {
-			if (repoBuilds.size() > 0) {
-				hasSubscriptions = true;
-			}
-			// determine the most severe status of any build
-			if (status != ViewStatus.ERROR) {
-				for (BambooBuild build : repoBuilds) {
-					if (build.getEnabled()) {
-						ViewStatus buildStatus = ViewStatus.NONE;
-						if (build.getErrorMessage() != null) {
-							buildStatus = ViewStatus.ERROR;
-						} else if (build.getStatus() == BuildStatus.FAILURE) {
-							buildStatus = ViewStatus.FAILED;
-						} else if (build.getStatus() == BuildStatus.SUCCESS) {
-							buildStatus = ViewStatus.PASSED;
-						}
-						if (buildStatus.ordinal() > status.ordinal()) {
-							status = buildStatus;
-						}
-					}
-				}
-			}
-		}
+		final boolean hasSubscriptions = !builds.isEmpty();
+		final ViewStatus status = getMostSevereStatus(builds);
 		boolean isTreeShown = stackLayout.topControl == treeComp;
 		if (hasSubscriptions && !isTreeShown) {
 			stackLayout.topControl = treeComp;
@@ -586,7 +629,7 @@ public class BambooView extends ViewPart {
 		if (failed) {
 			if (forcedRefresh) {
 				statusLineManager.setErrorMessage(CommonImages.getImage(CommonImages.WARNING),
-						"Error while refreshing build plans. See Error log for details.");
+						"Error while refreshing build plans. See Error Log for details.");
 			} else {
 				statusLineManager.setErrorMessage(CommonImages.getImage(CommonImages.WARNING),
 						"Error while refreshing build plans. Retry by manually invoking a refresh in the view's toolbar.");
@@ -598,8 +641,32 @@ public class BambooView extends ViewPart {
 
 		updateViewIcon(status);
 
-		buildViewer.setInput(builds);
+		buildViewer.setBuilds(builds);
 		buildViewer.refresh(true);
+	}
+
+	private ViewStatus getViewStatus(BambooBuild build) {
+		switch (build.getStatus()) {
+		case FAILURE:
+			return ViewStatus.FAILED;
+		case SUCCESS:
+			return ViewStatus.PASSED;
+		}
+		return ViewStatus.NONE;
+	}
+
+	private ViewStatus getMostSevereStatus(Collection<EclipseBambooBuild> repoBuilds) {
+		ViewStatus status = ViewStatus.NONE;
+		for (EclipseBambooBuild buildAdapter : repoBuilds) {
+			BambooBuild build = buildAdapter.getBuild();
+			if (build.getEnabled()) {
+				final ViewStatus buildStatus = getViewStatus(build);
+				if (buildStatus.ordinal() > status.ordinal()) {
+					status = buildStatus;
+				}
+			}
+		}
+		return status;
 	}
 
 	private void updateViewIcon(ViewStatus status) {
