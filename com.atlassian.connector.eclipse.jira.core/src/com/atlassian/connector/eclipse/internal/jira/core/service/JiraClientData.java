@@ -17,6 +17,7 @@ import java.util.Map;
 
 import com.atlassian.connector.eclipse.internal.jira.core.model.Group;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueType;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraConfiguration;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraStatus;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Priority;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Project;
@@ -69,4 +70,5 @@ public class JiraClientData implements Serializable {
 
 	long lastUpdate;
 
+	JiraConfiguration configuration;
 }

@@ -15,7 +15,9 @@ import com.atlassian.connector.commons.api.ConnectionCfg;
 import com.atlassian.connector.commons.fisheye.FishEyeServerFacade2;
 import com.atlassian.connector.eclipse.internal.core.client.AbstractConnectorClient;
 import com.atlassian.connector.eclipse.internal.core.client.HttpSessionCallbackImpl;
+import com.atlassian.connector.eclipse.internal.fisheye.core.FishEyeCorePlugin;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
+import com.atlassian.theplugin.commons.fisheye.api.FishEyeSession;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
 
 import org.eclipse.core.runtime.CoreException;
@@ -33,8 +35,8 @@ import java.util.Collection;
  * 
  * @author Wojciech Seliga
  */
-public class FishEyeClient extends AbstractConnectorClient<FishEyeServerFacade2> implements IUpdateRepositoryData,
-		IClientDataProvider {
+public class FishEyeClient extends AbstractConnectorClient<FishEyeServerFacade2, FishEyeSession> implements
+		IUpdateRepositoryData, IClientDataProvider {
 
 	private final FishEyeClientData clientData;
 
@@ -64,6 +66,7 @@ public class FishEyeClient extends AbstractConnectorClient<FishEyeServerFacade2>
 	}
 
 	public void updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
+		FishEyeCorePlugin.getMonitoring().logJob("updateRepositoryData", null); //$NON-NLS-1$
 		execute(new FishEyeRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
 			public Void run(FishEyeServerFacade2 server, ConnectionCfg aServerData, IProgressMonitor monitor)
@@ -75,6 +78,12 @@ public class FishEyeClient extends AbstractConnectorClient<FishEyeServerFacade2>
 				return null;
 			}
 		});
+	}
+
+	@Override
+	protected FishEyeSession getSession(ConnectionCfg connectionCfg) throws RemoteApiException,
+			ServerPasswordNotProvidedException {
+		return facade.getSession(connectionCfg);
 	}
 
 }

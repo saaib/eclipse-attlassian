@@ -29,7 +29,6 @@ import org.apache.commons.httpclient.HttpMethodBase;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.cookie.CookiePolicy;
 import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.HeadMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -46,6 +45,7 @@ import org.eclipse.mylyn.commons.net.WebUtil;
 
 import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraAuthenticationException;
+import com.atlassian.connector.eclipse.internal.jira.core.service.JiraCaptchaRequiredException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraClient;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraInvalidResponseTypeException;
@@ -120,7 +120,7 @@ public class JiraWebSession {
 			try {
 				// check if session is expired
 				if (doLogin || isAuthenticated(httpClient, hostConfiguration, monitor)) {
-					callback.configure(httpClient, hostConfiguration, baseUrl, client.getConfiguration()
+					callback.configure(httpClient, hostConfiguration, baseUrl, client.getLocalConfiguration()
 							.getFollowRedirects());
 					callback.run(client, baseUrl, monitor);
 					return;
@@ -144,15 +144,19 @@ public class JiraWebSession {
 	private boolean isAuthenticated(HttpClient httpClient, HostConfiguration hostConfiguration, IProgressMonitor monitor)
 			throws JiraException {
 		String url = baseUrl + "/secure/UpdateUserPreferences!default.jspa"; //$NON-NLS-1$
-		HeadMethod method = new HeadMethod(url);
+		GetMethod method = new GetMethod(url);
 		method.setFollowRedirects(false);
 
 		try {
 			int statusCode = WebUtil.execute(httpClient, hostConfiguration, method, monitor);
-			return statusCode == HttpStatus.SC_OK;
+
+			if (statusCode == HttpStatus.SC_OK) {
+				return !method.getResponseBodyAsString().contains("/login.jsp?os_destination"); //$NON-NLS-1$
+			}
 		} catch (IOException e) {
 			throw new JiraException(e);
 		}
+		return false;
 	}
 
 	private boolean isAuthenticationFailure(JiraException e) {
@@ -222,10 +226,10 @@ public class JiraWebSession {
 	private String getContentType() {
 		String characterEncoding = getCharacterEncoding();
 		if (characterEncoding == null) {
-			characterEncoding = client.getConfiguration().getCharacterEncoding();
+			characterEncoding = client.getLocalConfiguration().getCharacterEncoding();
 		}
 		if (characterEncoding == null) {
-			characterEncoding = client.getConfiguration().getDefaultCharacterEncoding();
+			characterEncoding = client.getLocalConfiguration().getDefaultCharacterEncoding();
 		}
 		return "application/x-www-form-urlencoded; charset=" + characterEncoding; //$NON-NLS-1$
 	}
@@ -277,7 +281,7 @@ public class JiraWebSession {
 				}
 				if (url.endsWith("/success")) { //$NON-NLS-1$
 					String newBaseUrl = url.substring(0, url.lastIndexOf("/success")); //$NON-NLS-1$
-					if (baseUrl.equals(newBaseUrl) || !client.getConfiguration().getFollowRedirects()) {
+					if (baseUrl.equals(newBaseUrl) || !client.getLocalConfiguration().getFollowRedirects()) {
 						// success
 						addAuthenticationCookie(httpClient, login);
 						return hostConfiguration;
@@ -347,6 +351,16 @@ public class JiraWebSession {
 		if (!getContentType().endsWith(method.getResponseCharSet())) {
 			this.characterEncoding = method.getResponseCharSet();
 			return true;
+		}
+
+		try {
+			client.getSoapClient().login(Policy.backgroundMonitorFor(monitor)); // pass NPM so there will be no request credentials dialog
+		} catch (JiraException e) {
+			if (e instanceof JiraCaptchaRequiredException) {
+				throw (JiraCaptchaRequiredException) e;
+			} else {
+				// just skip it
+			}
 		}
 
 		try {

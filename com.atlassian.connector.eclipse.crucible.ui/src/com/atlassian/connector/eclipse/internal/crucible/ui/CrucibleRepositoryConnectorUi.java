@@ -38,8 +38,9 @@ import org.eclipse.mylyn.tasks.ui.wizards.RepositoryQueryWizard;
 public class CrucibleRepositoryConnectorUi extends AbstractRepositoryConnectorUi {
 
 	public CrucibleRepositoryConnectorUi() {
-		CrucibleCorePlugin.getRepositoryConnector().getClientManager().setTaskRepositoryLocationFactory(
-				new TaskRepositoryLocationUiFactory());
+		CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.setTaskRepositoryLocationFactory(new TaskRepositoryLocationUiFactory());
 	}
 
 	@Override

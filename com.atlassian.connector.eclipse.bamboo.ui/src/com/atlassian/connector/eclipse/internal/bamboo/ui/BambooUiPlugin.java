@@ -13,12 +13,16 @@ package com.atlassian.connector.eclipse.internal.bamboo.ui;
 
 import com.atlassian.connector.eclipse.internal.bamboo.core.BambooCorePlugin;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.notifications.BambooNotificationProvider;
-import com.atlassian.connector.eclipse.internal.core.AtlassianCorePlugin;
+import com.atlassian.connector.eclipse.internal.branding.ui.RuntimeUtil;
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
 import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.jobs.IJobChangeEvent;
+import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.mylyn.internal.tasks.core.TaskRepositoryAdapter;
 import org.eclipse.mylyn.tasks.core.IRepositoryManager;
@@ -68,6 +72,19 @@ public class BambooUiPlugin extends AbstractUIPlugin {
 		// trigger tasks ui initialization first
 		IRepositoryManager repositoryManager = TasksUi.getRepositoryManager();
 		repositoryManager.addListener(BambooCorePlugin.getRepositoryConnector().getClientManager());
+
+		if (!getPreferenceStore().getBoolean(BambooConstants.PREFERENCE_SECURE_STORAGE_MIGRATED)
+				&& !RuntimeUtil.suppressConfigurationWizards()) {
+			Job migrateJob = new MigrateToSecureStorageJob(BambooCorePlugin.CONNECTOR_KIND);
+			migrateJob.addJobChangeListener(new JobChangeAdapter() {
+				@Override
+				public void done(IJobChangeEvent event) {
+					getPreferenceStore().setValue(BambooConstants.PREFERENCE_SECURE_STORAGE_MIGRATED, Boolean.TRUE);
+				}
+			});
+			migrateJob.schedule();
+		}
+
 		UIJob job = new UIJob("Initializing Bamboo") {
 			@Override
 			public IStatus runInUIThread(IProgressMonitor monitor) {
@@ -122,7 +139,7 @@ public class BambooUiPlugin extends AbstractUIPlugin {
 
 		public void repositoryAdded(TaskRepository repository) {
 			if (repository.getConnectorKind().equals(BambooCorePlugin.CONNECTOR_KIND)
-					&& !AtlassianCorePlugin.getDefault().suppressConfigurationWizards()) {
+					&& !RuntimeUtil.suppressConfigurationWizards()) {
 				Display.getDefault().asyncExec(new Runnable() {
 					public void run() {
 						AtlassianUiUtil.ensureViewIsVisible(BambooView.ID);

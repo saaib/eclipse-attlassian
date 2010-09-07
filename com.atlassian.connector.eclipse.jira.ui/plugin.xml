@@ -29,14 +29,15 @@
             id="jira"
             class="com.atlassian.connector.eclipse.internal.jira.core.JiraRepositoryConnector"
             name="%JiraRepositoryConnector.name"/>
-	  <connectorUi
-         brandingIcon="icons/eview16/jira-logo.gif"
-         class="com.atlassian.connector.eclipse.internal.jira.ui.JiraConnectorUi"
-         name="%JiraConnectorUi.name"
-         overlayIcon="icons/eview16/overlay-jira.gif"/>
-   <taskListMigrator
-         class="com.atlassian.connector.eclipse.internal.jira.ui.JiraTaskListMigrator">
-   </taskListMigrator>
+		<connectorUi 
+			brandingIcon="icons/eview16/jira-logo.gif"
+			class="com.atlassian.connector.eclipse.internal.jira.ui.JiraConnectorUi"
+			name="%JiraConnectorUi.name"
+			overlayIcon="icons/eview16/overlay-jira.gif"/>
+		<taskListMigrator
+			class="com.atlassian.connector.eclipse.internal.jira.ui.JiraTaskListMigrator">
+		</taskListMigrator>
+	   <repositoryMigrator class="com.atlassian.connector.eclipse.internal.jira.ui.JiraRepositoryMigrator"/>
             
    </extension>
 
@@ -47,17 +48,17 @@
             anonymous="false"
             repositoryKind="jira"
             label="Codehaus"
-            urlRepository="http://jira.codehaus.org/"/>
+            urlRepository="http://jira.codehaus.org"/>
       <repository
             addAutomatically="false"
             anonymous="false"
             repositoryKind="jira"
             label="Apache"
-            urlRepository="http://issues.apache.org/jira/"/>
+            urlRepository="https://issues.apache.org/jira"/>
       <repository addAutomatically="true"
 			label="Atlassian Integrations Support" 
 			repositoryKind="jira" 
-			urlRepository="https://studio.atlassian.com/" />
+			urlRepository="https://studio.atlassian.com" />
    </extension>
 
    <extension
@@ -106,7 +107,56 @@
           point="org.eclipse.mylyn.tasks.ui.taskRepositoryPageContribution">
        <taskRepositoryPageContribution
        		 id="com.atlassian.connector.eclipse.jira.ui.googleAppsExtensionSettings"
-             class="com.atlassian.connector.eclipse.internal.jira.ui.wizards.GoogleAppsExtensionSettingsContribution">
+             class="com.atlassian.connector.eclipse.internal.jira.ui.wizards.GoogleAppsExtensionSettingsContribution"
+             connectorKind="jira">
        </taskRepositoryPageContribution>
     </extension>
+
+<!--
+   <extension point="org.eclipse.ui.popupMenus">
+   <objectContribution 
+   		id="com.atlassian.connector.eclipse.internal.jira.ui.IJiraTaskObjectContribution" 
+   		objectClass="com.atlassian.connector.eclipse.internal.jira.ui.IJiraTask"
+   		adaptable="true">
+			<action
+		      	class="com.atlassian.connector.eclipse.internal.jira.ui.actions.WatchAction"
+	        	id="com.atlassian.connector.eclipse.jira.ui.actions.WatchAction"
+	        	label="%Action.Watch.label"
+	        	menubarPath="additions"/>
+	        <action
+		      	class="com.atlassian.connector.eclipse.internal.jira.ui.actions.VoteAction"
+	        	id="com.atlassian.connector.eclipse.jira.ui.actions.VoteAction"
+	        	label="%Action.Vote.label"
+	        	menubarPath="additions"/>
+   </objectContribution>
+  </extension>
+-->
+  
+  <!-- TODO jj add icon and fix label -->
+  <extension point="org.eclipse.ui.popupMenus">
+   <objectContribution 
+   		id="com.atlassian.connector.eclipse.internal.jira.ui.IJiraTaskObjectContribution" 
+   		objectClass="com.atlassian.connector.eclipse.internal.jira.ui.IJiraTask"
+   		adaptable="true">
+	        <action
+		      	class="com.atlassian.connector.eclipse.internal.jira.ui.actions.StartWorkAction"
+	        	id="com.atlassian.connector.eclipse.internal.jira.ui.actions.StartWorkAction"
+	        	label="%Action.Start.Work.label"
+	        	menubarPath="additions"
+	        	enablesFor="1"/>
+   </objectContribution>
+  </extension>
+  
+  <extension
+         point="org.eclipse.core.runtime.adapters">
+      <factory
+            adaptableType="org.eclipse.core.runtime.IAdaptable"
+            class="com.atlassian.connector.eclipse.internal.jira.ui.JiraTaskAdapterFactory">
+         <adapter
+               type="com.atlassian.connector.eclipse.internal.jira.ui.IJiraTask">
+         </adapter>
+      </factory>
+   </extension>
+
+
 </plugin>

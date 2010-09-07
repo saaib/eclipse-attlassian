@@ -11,18 +11,22 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.core.client;
 
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleVersionInfo;
+import com.atlassian.theplugin.commons.crucible.api.model.ExtendedCrucibleProject;
 import com.atlassian.theplugin.commons.crucible.api.model.Repository;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.util.MiscUtil;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -36,14 +40,18 @@ public class CrucibleClientData implements Serializable {
 
 	private Set<User> cachedUsers;
 
-	private Set<CrucibleProject> cachedProjects;
+	/**
+	 * Project key => project data ({@link BasicProject} or {@link ExtendedCrucibleProject})
+	 */
+	private Map<String, BasicProject> cachedProjects;
 
 	private Set<Repository> cachedRepositories;
 
 	private CrucibleVersionInfo versionInfo;
 
-	public CrucibleClientData() {
+	private transient Map<String, byte[]> avatars;
 
+	public CrucibleClientData() {
 	}
 
 	public boolean hasData() {
@@ -60,17 +68,29 @@ public class CrucibleClientData implements Serializable {
 		cachedUsers.addAll(users);
 	}
 
-	public void setProjects(List<CrucibleProject> projects) {
-		cachedProjects = MiscUtil.buildHashSet();
-		cachedProjects.addAll(projects);
+	public void setProjects(Collection<BasicProject> projects) {
+		cachedProjects = MiscUtil.buildHashMap();
+		for (BasicProject basicProject : projects) {
+			cachedProjects.put(basicProject.getKey(), basicProject);
+		}
 	}
 
-	public Set<CrucibleProject> getCachedProjects() {
+	public void updateProject(ExtendedCrucibleProject project) {
+		cachedProjects.put(project.getKey(), project);
+	}
+
+	@NotNull
+	public Collection<BasicProject> getCachedProjects() {
 		if (cachedProjects != null) {
-			return Collections.unmodifiableSet(cachedProjects);
+			return Collections.unmodifiableCollection(cachedProjects.values());
 		} else {
-			return Collections.unmodifiableSet(new HashSet<CrucibleProject>());
+			return Collections.emptySet();
 		}
+	}
+
+	@Nullable
+	public BasicProject getCrucibleProject(String key) {
+		return cachedProjects != null ? cachedProjects.get(key) : null;
 	}
 
 	public Set<User> getCachedUsers() {
@@ -96,6 +116,18 @@ public class CrucibleClientData implements Serializable {
 	@Nullable
 	public CrucibleVersionInfo getVersionInfo() {
 		return versionInfo;
+	}
+
+	public void addAvatar(@NotNull User user, @NotNull byte[] avatar) {
+		if (avatars == null) {
+			avatars = MiscUtil.buildHashMap();
+		}
+		avatars.put(user.getAvatarUrl(), avatar);
+	}
+
+	@Nullable
+	public byte[] getAvatar(@NotNull User user) {
+		return avatars != null ? avatars.get(user.getAvatarUrl()) : null;
 	}
 
 }

@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Atlassian Connector for Eclipse Crucible UI
 Bundle-SymbolicName: com.atlassian.connector.eclipse.crucible.ui;singleton:=true
-Bundle-Version: 2.1.0.qualifier
+Bundle-Version: 2.3.0.qualifier
 Require-Bundle: com.atlassian.connector.commons,
  org.eclipse.core.runtime,
  org.eclipse.ui,
@@ -11,6 +11,7 @@ Require-Bundle: com.atlassian.connector.commons,
  com.atlassian.connector.eclipse.fisheye.ui;visibility:=reexport,
  com.atlassian.connector.eclipse.ui,
  com.atlassian.connector.eclipse.team.ui,
+ com.atlassian.connector.eclipse.branding.ui,
  org.jetbrains.annotations;resolution:=optional,
  org.eclipse.mylyn.tasks.core;bundle-version="[3.2.0,4.0.0)",
  org.eclipse.mylyn.tasks.ui;bundle-version="[3.2.0,4.0.0)",
@@ -27,6 +28,7 @@ Require-Bundle: com.atlassian.connector.commons,
  org.eclipse.mylyn.commons.core,
  com.atlassian.connector.eclipse.core,
  com.atlassian.connector.eclipse.ui,
+ com.atlassian.connector.eclipse.commons.ui,
  org.eclipse.mylyn.monitor.ui,
  org.eclipse.compare,
  org.eclipse.mylyn.commons.net,
@@ -35,7 +37,9 @@ Require-Bundle: com.atlassian.connector.commons,
  org.eclipse.team.ui,
  org.apache.commons.io,
  org.eclipse.ui.views.log;resolution:=optional,
- org.eclipse.ui.workbench.texteditor
+ org.eclipse.ui.workbench.texteditor,
+ com.atlassian.connector.eclipse.jira.ui,
+ org.eclipse.core.filesystem
 Bundle-Activator: com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: J2SE-1.5

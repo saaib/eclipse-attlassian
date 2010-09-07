@@ -11,17 +11,19 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepositoryConnector;
+import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleProjectsLabelProvider;
 import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleUserLabelProvider;
 import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.ReviewersSelectionTreePart;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
+import com.atlassian.theplugin.commons.crucible.api.model.ExtendedCrucibleProject;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
+import com.atlassian.theplugin.commons.crucible.api.model.ReviewType;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
 import org.eclipse.jface.viewers.ArrayContentProvider;
@@ -35,6 +37,7 @@ import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.jface.viewers.ViewerSorter;
 import org.eclipse.jface.wizard.WizardPage;
+import org.eclipse.mylyn.internal.provisional.commons.ui.WorkbenchUtil;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyEvent;
@@ -49,6 +52,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
 import org.jetbrains.annotations.Nullable;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -98,24 +102,24 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		this.taskRepository = repository;
 	}
 
+	private boolean firstTime = true;
+
 	@Override
 	public void setVisible(final boolean visible) {
 		// check if cached data is available, if not, start background process to fetch it
-		if (visible) {
+		if (visible && firstTime) {
+			firstTime = false;
 			if (!CrucibleUiUtil.hasCachedData(taskRepository)) {
 				Display.getDefault().asyncExec(new Runnable() {
 					public void run() {
 						CrucibleUiUtil.updateTaskRepositoryCache(taskRepository, getContainer(),
 								CrucibleReviewDetailsPage.this);
 						setInputAndInitialSelections();
-						reviewersSelectionTreePart.setAllReviewers(CrucibleUiUtil
-								.getAllCachedUsersAsReviewers(taskRepository));
 					}
 				});
 			} else {
 				// preselect
 				setInputAndInitialSelections();
-				reviewersSelectionTreePart.setAllReviewers(CrucibleUiUtil.getAllCachedUsersAsReviewers(taskRepository));
 			}
 		}
 		super.setVisible(visible);
@@ -128,10 +132,8 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 	private void setInputAndInitialSelections() {
 		updateInput();
 
-		Set<CrucibleProject> cachedProjects = CrucibleUiUtil.getCachedProjects(taskRepository);
-
-		CrucibleProject lastSelectedProject = CrucibleRepositoryConnector.getLastSelectedProject(taskRepository,
-				cachedProjects);
+		final String lastSelectedProjectKey = CrucibleUiPlugin.getDefault().getLastSelectedProjectKey(taskRepository);
+		final BasicProject lastSelectedProject = CrucibleUiUtil.getCachedProject(taskRepository, lastSelectedProjectKey);
 		if (lastSelectedProject != null) {
 			projectsComboViewer.setSelection(new StructuredSelection(lastSelectedProject));
 		} else {
@@ -154,12 +156,13 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		}
 
 		// restore checkboxes selection
-		anyoneCanJoin.setSelection(CrucibleRepositoryConnector.getAllowAnyoneOption(taskRepository));
-		startReview.setSelection(CrucibleRepositoryConnector.getStartReviewOption(taskRepository));
+		anyoneCanJoin.setSelection(CrucibleUiPlugin.getDefault().getAllowAnyoneOption(taskRepository));
+		startReview.setSelection(CrucibleUiPlugin.getDefault().getStartReviewOption(taskRepository));
+		updateReviewersControl();
 	}
 
 	private void updateInput() {
-		Set<CrucibleProject> cachedProjects = CrucibleUiUtil.getCachedProjects(taskRepository);
+		Collection<BasicProject> cachedProjects = CrucibleUiUtil.getCachedProjects(taskRepository);
 		projectsComboViewer.setInput(cachedProjects);
 
 		Set<User> cachedUsers = CrucibleUiUtil.getCachedUsers(taskRepository);
@@ -168,7 +171,7 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 	}
 
 	private void updateInputAndRestoreSelections() {
-		CrucibleProject previousProject = (CrucibleProject) ((IStructuredSelection) projectsComboViewer.getSelection())
+		BasicProject previousProject = (BasicProject) ((IStructuredSelection) projectsComboViewer.getSelection())
 				.getFirstElement();
 		User previousModerator = (User) ((IStructuredSelection) moderatorComboViewer.getSelection()).getFirstElement();
 		User previousAuthor = (User) ((IStructuredSelection) authorComboViewer.getSelection()).getFirstElement();
@@ -186,6 +189,7 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		if (previousAuthor != null) {
 			authorComboViewer.setSelection(new StructuredSelection(previousAuthor));
 		}
+		updateReviewersControl();
 	}
 
 	public void createControl(Composite parent) {
@@ -208,10 +212,7 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		projectsComboViewer.setSorter(new ViewerSorter());
 		projectsComboViewer.addSelectionChangedListener(new ISelectionChangedListener() {
 			public void selectionChanged(SelectionChangedEvent event) {
-				Object firstElement = ((IStructuredSelection) event.getSelection()).getFirstElement();
-				if (firstElement != null) {
-					getWizard().getContainer().updateButtons();
-				}
+				updateReviewersControl();
 			}
 		});
 		GridDataFactory.fillDefaults().grab(true, false).applyTo(projectsComboViewer.getCombo());
@@ -282,8 +283,8 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 			GridDataFactory.fillDefaults().grab(true, true).hint(480, 200).applyTo(commentText);
 		}
 
-		reviewersSelectionTreePart = new ReviewersSelectionTreePart(Collections.<Reviewer> emptySet(),
-				CrucibleUiUtil.getAllCachedUsersAsReviewers(taskRepository));
+		reviewersSelectionTreePart = new ReviewersSelectionTreePart(Collections.<User> emptySet(),
+				Collections.<User> emptyList());
 		Composite reviewersComp = reviewersSelectionTreePart.createControl(composite);
 		GridDataFactory.fillDefaults().grab(true, true).span(2, 1).hint(SWT.DEFAULT, 150).applyTo(reviewersComp);
 		reviewersSelectionTreePart.setCheckStateListener(new ICheckStateListener() {
@@ -300,7 +301,6 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 			public void widgetSelected(SelectionEvent e) {
 				CrucibleUiUtil.updateTaskRepositoryCache(taskRepository, getContainer(), CrucibleReviewDetailsPage.this);
 				updateInputAndRestoreSelections();
-				reviewersSelectionTreePart.setAllReviewers(CrucibleUiUtil.getAllCachedUsersAsReviewers(taskRepository));
 			}
 		});
 
@@ -310,8 +310,11 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 
 		startReview = new Button(composite, SWT.CHECK);
 		startReview.setText("Start review immediately (if permitted)");
-		GridDataFactory.fillDefaults().span(2, 1).align(SWT.BEGINNING, SWT.BEGINNING).indent(5, SWT.DEFAULT).applyTo(
-				startReview);
+		GridDataFactory.fillDefaults()
+				.span(2, 1)
+				.align(SWT.BEGINNING, SWT.BEGINNING)
+				.indent(5, SWT.DEFAULT)
+				.applyTo(startReview);
 
 		Dialog.applyDialogFont(composite);
 		setControl(composite);
@@ -354,7 +357,7 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 
 	private boolean hasValidReviewers(Review newReview) {
 		setErrorMessage(null);
-		for (Reviewer reviewer : reviewersSelectionTreePart.getSelectedReviewers()) {
+		for (User reviewer : reviewersSelectionTreePart.getSelectedReviewers()) {
 			if (newReview.getAuthor().getUsername().equals(reviewer.getUsername())) {
 				setErrorMessage("The author might not be a reviewer as well.");
 				return false;
@@ -375,13 +378,13 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 	@Nullable
 	public Review getReview() {
 		final User author = getSelectedAuthor();
-		final CrucibleProject project = getSelectedProject();
+		final BasicProject project = getSelectedProject();
 
 		if (project == null || project.getKey() == null) {
 			return null;
 		}
 
-		Review review = new Review(taskRepository.getUrl(), project.getKey(), author, null);
+		Review review = new Review(ReviewType.REVIEW, taskRepository.getUrl(), project.getKey(), author, null);
 
 		if (titleText != null) {
 			review.setName(titleText.getText());
@@ -393,7 +396,7 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		}
 
 		if (reviewersSelectionTreePart != null) {
-			review.setReviewers(reviewersSelectionTreePart.getSelectedReviewers());
+			review.setReviewers(CrucibleUiUtil.toReviewers(reviewersSelectionTreePart.getSelectedReviewers()));
 		}
 
 		if (anyoneCanJoin != null) {
@@ -409,13 +412,13 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 	}
 
 	private User getSelectedAuthor() {
-		User author = (authorComboViewer != null)
-				? (User) ((IStructuredSelection) authorComboViewer.getSelection()).getFirstElement()
+		User author = (authorComboViewer != null) ? (User) ((IStructuredSelection) authorComboViewer.getSelection())
+				.getFirstElement()
 				: null;
 		return author;
 	}
 
-	Set<Reviewer> getReviewers() {
+	Set<User> getReviewers() {
 		return reviewersSelectionTreePart.getSelectedReviewers();
 	}
 
@@ -424,13 +427,13 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 	}
 
 	@Nullable
-	CrucibleProject getSelectedProject() {
+	BasicProject getSelectedProject() {
 		if (projectsComboViewer == null) {
 			return null;
 		}
 		Object firstElement = ((IStructuredSelection) projectsComboViewer.getSelection()).getFirstElement();
 		if (firstElement != null) {
-			return (CrucibleProject) firstElement;
+			return (BasicProject) firstElement;
 		}
 		return null;
 	}
@@ -443,4 +446,37 @@ public class CrucibleReviewDetailsPage extends WizardPage {
 		return commentText.getText();
 	}
 
+	private void updateReviewersControl() {
+		BasicProject project = getSelectedProject();
+		if (project != null) {
+			BasicProject details = CrucibleUiUtil.getCachedProject(taskRepository, project.getKey());
+
+			if (!(details instanceof ExtendedCrucibleProject)) {
+				if (!CrucibleUiUtil.updateProjectDetailsCache(taskRepository, project.getKey(), getContainer())) {
+					MessageDialog.openError(WorkbenchUtil.getShell(), "Problem",
+							"Could not retrieve project details from server.\n"
+									+ "See Error Log for details");
+					// such call (the original one) does not help here,
+					// as error message gets immediately cleared by hasRequiredFields()
+
+					// setErrorMessage("Could not retrieve project details from server.");
+				}
+
+				details = CrucibleUiUtil.getCachedProject(taskRepository, project.getKey());
+			}
+
+			if (details instanceof ExtendedCrucibleProject
+					&& ((ExtendedCrucibleProject) details).getAllowedReviewers() != null
+					&& ((ExtendedCrucibleProject) details).getAllowedReviewers().size() > 0) {
+				Collection<String> allowedReviewersNames = ((ExtendedCrucibleProject) details).getAllowedReviewers();
+				final Collection<User> allowedReviewers = CrucibleUiUtil.getUsersFromUsernames(taskRepository,
+						allowedReviewersNames);
+				reviewersSelectionTreePart.setAllReviewers(allowedReviewers);
+			} else {
+				reviewersSelectionTreePart.setAllReviewers(CrucibleUiUtil.getCachedUsers(taskRepository));
+			}
+
+			getWizard().getContainer().updateButtons();
+		}
+	}
 }

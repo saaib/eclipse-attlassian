@@ -14,59 +14,6 @@
 
 package com.atlassian.connector.eclipse.internal.jira.ui.wizards;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.OperationCanceledException;
-import org.eclipse.core.runtime.SubMonitor;
-import org.eclipse.jface.dialogs.Dialog;
-import org.eclipse.jface.dialogs.IDialogSettings;
-import org.eclipse.jface.layout.GridDataFactory;
-import org.eclipse.jface.operation.IRunnableContext;
-import org.eclipse.jface.viewers.ComboViewer;
-import org.eclipse.jface.viewers.IColorProvider;
-import org.eclipse.jface.viewers.ILabelProvider;
-import org.eclipse.jface.viewers.ILabelProviderListener;
-import org.eclipse.jface.viewers.ISelectionChangedListener;
-import org.eclipse.jface.viewers.IStructuredContentProvider;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.ListViewer;
-import org.eclipse.jface.viewers.SelectionChangedEvent;
-import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.jface.viewers.Viewer;
-import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
-import org.eclipse.mylyn.internal.provisional.commons.ui.DatePicker;
-import org.eclipse.mylyn.internal.provisional.commons.ui.ICoreRunnable;
-import org.eclipse.mylyn.tasks.core.IRepositoryQuery;
-import org.eclipse.mylyn.tasks.core.TaskRepository;
-import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositoryQueryPage;
-import org.eclipse.osgi.util.NLS;
-import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.SashForm;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Color;
-import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.layout.FillLayout;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.widgets.Text;
-import org.eclipse.ui.PlatformUI;
-
 import com.atlassian.connector.eclipse.internal.jira.core.JiraClientFactory;
 import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Component;
@@ -99,6 +46,65 @@ import com.atlassian.connector.eclipse.internal.jira.core.util.JiraUtil;
 import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiPlugin;
 import com.atlassian.connector.eclipse.internal.jira.ui.WdhmUtil;
 
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.SubMonitor;
+import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.dialogs.IDialogSettings;
+import org.eclipse.jface.layout.GridDataFactory;
+import org.eclipse.jface.layout.GridLayoutFactory;
+import org.eclipse.jface.operation.IRunnableContext;
+import org.eclipse.jface.resource.JFaceResources;
+import org.eclipse.jface.viewers.ComboViewer;
+import org.eclipse.jface.viewers.IColorProvider;
+import org.eclipse.jface.viewers.ILabelProvider;
+import org.eclipse.jface.viewers.ILabelProviderListener;
+import org.eclipse.jface.viewers.ISelectionChangedListener;
+import org.eclipse.jface.viewers.IStructuredContentProvider;
+import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.LabelProvider;
+import org.eclipse.jface.viewers.ListViewer;
+import org.eclipse.jface.viewers.SelectionChangedEvent;
+import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.viewers.Viewer;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
+import org.eclipse.mylyn.internal.provisional.commons.ui.DatePicker;
+import org.eclipse.mylyn.internal.provisional.commons.ui.ICoreRunnable;
+import org.eclipse.mylyn.tasks.core.IRepositoryQuery;
+import org.eclipse.mylyn.tasks.core.TaskRepository;
+import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositoryQueryPage;
+import org.eclipse.osgi.util.NLS;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Text;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.forms.events.ExpansionAdapter;
+import org.eclipse.ui.forms.events.ExpansionEvent;
+import org.eclipse.ui.forms.widgets.ExpandableComposite;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * @author Brock Janiczak
  * @author Eugene Kuleshov
@@ -107,6 +113,7 @@ import com.atlassian.connector.eclipse.internal.jira.ui.WdhmUtil;
  * @author Thomas Ehrnhoefer
  * @author Pawel Niewiadomski
  * @author Jacek Jaroczynski
+ * @author Wojciech Seliga
  */
 public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 
@@ -679,15 +686,13 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 	}
 
 	public void createControl(final Composite parent) {
-		Composite c = new Composite(parent, SWT.NONE);
-		c.setLayout(new GridLayout(3, false));
-		GridData gdMain = new GridData(GridData.FILL_BOTH);
-		gdMain.widthHint = 800;
-		gdMain.minimumWidth = 800;
-		c.setLayoutData(gdMain);
+		final Composite c = new Composite(parent, SWT.NONE);
 		setControl(c);
+		GridLayoutFactory.fillDefaults().numColumns(3).applyTo(c);
 
 		if (!inSearchContainer()) {
+			GridDataFactory.fillDefaults().hint(800, SWT.DEFAULT).minSize(800, SWT.DEFAULT).grab(true, true).applyTo(c);
+
 			Label lblName = new Label(c, SWT.NONE);
 			final GridData gridData = new GridData();
 			lblName.setLayoutData(gridData);
@@ -701,184 +706,115 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 					setPageComplete(isPageComplete());
 				}
 			});
+		} else {
+			GridDataFactory.fillDefaults().grab(true, true).applyTo(c);
 		}
 
-		SashForm sashForm = new SashForm(c, SWT.VERTICAL);
-		GridData gd_sashForm = new GridData(SWT.FILL, SWT.FILL, false, true, 3, 1);
-		gd_sashForm.heightHint = 200;
-		gd_sashForm.widthHint = 650;
-		sashForm.setLayoutData(gd_sashForm);
-
 		{
-			SashForm cc = new SashForm(sashForm, SWT.HORIZONTAL);
+			Composite cc = new Composite(c, SWT.NONE);
+			GridDataFactory.fillDefaults()
+					.align(SWT.FILL, SWT.FILL)
+					.grab(true, true)
+					.hint(650, 130)
+					.span(3, 1)
+					.applyTo(cc);
+			GridLayoutFactory.fillDefaults().numColumns(2).applyTo(cc);
 
 			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout(1, false);
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label label = new Label(comp, SWT.NONE);
+				Label label = new Label(cc, SWT.NONE);
 				label.setText(Messages.JiraFilterDefinitionPage_Project);
-				createProjectsViewer(comp);
 			}
 
 			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout(1, false);
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				new Label(comp, SWT.NONE).setText(Messages.JiraFilterDefinitionPage_Fix_For);
-				createFixForViewer(comp);
-			}
-
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout(1, false);
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				new Label(comp, SWT.NONE).setText(Messages.JiraFilterDefinitionPage_In_Components);
-				createComponentsViewer(comp);
-			}
-
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout(1, false);
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label label = new Label(comp, SWT.NONE);
-				label.setText(Messages.JiraFilterDefinitionPage_Reported_In);
-				createReportedInViewer(comp);
-			}
-			cc.setWeights(new int[] { 1, 1, 1, 1 });
-		}
-
-		{
-			SashForm cc = new SashForm(sashForm, SWT.NONE);
-
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout();
-				gridLayout.marginHeight = 0;
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label typeLabel = new Label(comp, SWT.NONE);
+				Label typeLabel = new Label(cc, SWT.NONE);
 				typeLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
 				typeLabel.setText(Messages.JiraFilterDefinitionPage_Type);
-
-				createIssueTypesViewer(comp);
 			}
 
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout();
-				gridLayout.marginHeight = 0;
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label statusLabel = new Label(comp, SWT.NONE);
-				statusLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-				statusLabel.setText(Messages.JiraFilterDefinitionPage_Status);
-
-				status = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
-				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
-				gridData.heightHint = HEIGHT_HINT;
-				gridData.widthHint = WIDTH_HINT;
-				status.getList().setLayoutData(gridData);
-
-				status.setLabelProvider(new LabelProvider() {
-
-					@Override
-					public String getText(Object element) {
-						if (element instanceof Placeholder) {
-							return ((Placeholder) element).getText();
-						}
-
-						return ((JiraStatus) element).getName();
-					}
-
-				});
-			}
-
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout();
-				gridLayout.marginHeight = 0;
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label resolutionLabel = new Label(comp, SWT.NONE);
-				resolutionLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-				resolutionLabel.setText(Messages.JiraFilterDefinitionPage_Resolution);
-
-				resolution = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
-				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
-				gridData.heightHint = HEIGHT_HINT;
-				gridData.widthHint = WIDTH_HINT;
-				resolution.getList().setLayoutData(gridData);
-
-				resolution.setLabelProvider(new LabelProvider() {
-
-					@Override
-					public String getText(Object element) {
-						if (element instanceof Placeholder) {
-							return ((Placeholder) element).getText();
-						}
-
-						return ((Resolution) element).getName();
-					}
-
-				});
-			}
-
-			{
-				Composite comp = new Composite(cc, SWT.NONE);
-				GridLayout gridLayout = new GridLayout();
-				gridLayout.marginHeight = 0;
-				gridLayout.marginWidth = 0;
-				comp.setLayout(gridLayout);
-
-				Label priorityLabel = new Label(comp, SWT.NONE);
-				priorityLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
-				priorityLabel.setText(Messages.JiraFilterDefinitionPage_Priority);
-
-				priority = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
-				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
-				gridData.heightHint = HEIGHT_HINT;
-				gridData.widthHint = WIDTH_HINT;
-				priority.getList().setLayoutData(gridData);
-
-				priority.setLabelProvider(new LabelProvider() {
-
-					@Override
-					public String getText(Object element) {
-						if (element instanceof Placeholder) {
-							return ((Placeholder) element).getText();
-						}
-
-						return ((Priority) element).getName();
-					}
-
-				});
-			}
-
-			cc.setWeights(new int[] { 1, 1, 1, 1 });
+			createProjectsViewer(cc);
+			createIssueTypesViewer(cc);
 		}
-		sashForm.setWeights(new int[] { 1, 1 });
 
 		createUpdateButton(c);
 
+		ExpandableComposite textSection = createExpandableComposite(c, "Text Search", false);
+		Composite textComposite = new Composite(textSection, SWT.NONE);
+		GridLayoutFactory.fillDefaults().numColumns(3).margins(0, 5).applyTo(textComposite);
+		GridDataFactory.fillDefaults().grab(true, false).applyTo(textComposite);
+		textSection.setClient(textComposite);
+		createTextSearchContents(textComposite);
+		textSection.setExpanded(inSearchContainer());
+
+		ExpandableComposite issueDetailsSection = createExpandableComposite(c, "Issue Details", true);
+
+		final Composite detailsComposite = new Composite(issueDetailsSection, SWT.NONE);
+		GridLayoutFactory.fillDefaults().numColumns(3).margins(0, 5).applyTo(detailsComposite);
+		GridDataFactory.fillDefaults().grab(true, true).applyTo(detailsComposite);
+		issueDetailsSection.setClient(detailsComposite);
+		createIssueDetailsContents(detailsComposite);
+		issueDetailsSection.setExpanded(!inSearchContainer());
+
+		ExpandableComposite projectDetailsSection = createExpandableComposite(c, "Components / Versions", true);
+		createProjectDetailsContents(projectDetailsSection);
+		projectDetailsSection.setExpanded(!inSearchContainer());
+
+		ExpandableComposite datesSection = createExpandableComposite(c, "Dates and Times", false);
+		final Composite datesComposite = new Composite(datesSection, SWT.NONE);
+		GridLayoutFactory.fillDefaults().numColumns(3).margins(0, 5).applyTo(datesComposite);
+		GridDataFactory.fillDefaults().grab(true, false).applyTo(datesComposite);
+		datesSection.setClient(datesComposite);
+		createDatesContent(datesComposite);
+
+		loadDefaults();
+		Dialog.applyDialogFont(parent);
+	}
+
+	private void createProjectDetailsContents(ExpandableComposite projectDetailsComposite) {
+		SashForm cc = new SashForm(projectDetailsComposite, SWT.HORIZONTAL);
+		GridDataFactory.fillDefaults().span(3, 1).grab(true, true).applyTo(cc);
+		{
+			Composite comp = new Composite(cc, SWT.NONE);
+			GridLayout gridLayout = new GridLayout(1, false);
+			gridLayout.marginWidth = 0;
+			comp.setLayout(gridLayout);
+
+			new Label(comp, SWT.NONE).setText(Messages.JiraFilterDefinitionPage_Fix_For);
+			createFixForViewer(comp);
+		}
+
+		{
+			Composite comp = new Composite(cc, SWT.NONE);
+			GridLayout gridLayout = new GridLayout(1, false);
+			gridLayout.marginWidth = 0;
+			comp.setLayout(gridLayout);
+
+			new Label(comp, SWT.NONE).setText(Messages.JiraFilterDefinitionPage_In_Components);
+			createComponentsViewer(comp);
+		}
+
+		{
+			Composite comp = new Composite(cc, SWT.NONE);
+			GridLayout gridLayout = new GridLayout(1, false);
+			gridLayout.marginWidth = 0;
+			comp.setLayout(gridLayout);
+
+			Label label = new Label(comp, SWT.NONE);
+			label.setText(Messages.JiraFilterDefinitionPage_Reported_In);
+			createReportedInViewer(comp);
+		}
+
+		cc.setWeights(new int[] { 1, 1, 1 });
+		projectDetailsComposite.setClient(cc);
+	}
+
+	private void createTextSearchContents(Composite c) {
 		Label lblQuery = new Label(c, SWT.NONE);
 		final GridData gd_lblQuery = new GridData();
 		gd_lblQuery.verticalIndent = 7;
 		lblQuery.setLayoutData(gd_lblQuery);
 		lblQuery.setText(Messages.JiraFilterDefinitionPage_Query);
 		queryString = new Text(c, SWT.BORDER);
-		final GridData gd_queryString = new GridData(SWT.FILL, SWT.FILL, false, false, 2, 1);
+		final GridData gd_queryString = new GridData(SWT.FILL, SWT.FILL, true, false, 2, 1);
 		gd_queryString.verticalIndent = 7;
 		queryString.setLayoutData(gd_queryString);
 		// TODO put content assist here and a label describing what is
@@ -922,7 +858,9 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 			searchEnvironment.setText(Messages.JiraFilterDefinitionPage_Environment);
 			searchEnvironment.addSelectionListener(selectionAdapter);
 		}
+	}
 
+	private void createIssueDetailsContents(Composite c) {
 		{
 			Label reportedByLabel = new Label(c, SWT.NONE);
 			reportedByLabel.setText(Messages.JiraFilterDefinitionPage_Reported_By);
@@ -1038,6 +976,108 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 			});
 		}
 
+		{
+			SashForm cc = new SashForm(c, SWT.NONE);
+			GridDataFactory.fillDefaults().span(3, 1).grab(true, true).applyTo(cc);
+
+			{
+				Composite comp = new Composite(cc, SWT.NONE);
+				GridLayout gridLayout = new GridLayout();
+				gridLayout.marginHeight = 0;
+				gridLayout.marginWidth = 0;
+				comp.setLayout(gridLayout);
+
+				Label statusLabel = new Label(comp, SWT.NONE);
+				statusLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+				statusLabel.setText(Messages.JiraFilterDefinitionPage_Status);
+
+				status = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
+				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
+				gridData.heightHint = HEIGHT_HINT;
+				gridData.widthHint = WIDTH_HINT;
+				status.getList().setLayoutData(gridData);
+
+				status.setLabelProvider(new LabelProvider() {
+
+					@Override
+					public String getText(Object element) {
+						if (element instanceof Placeholder) {
+							return ((Placeholder) element).getText();
+						}
+
+						return ((JiraStatus) element).getName();
+					}
+
+				});
+			}
+
+			{
+				Composite comp = new Composite(cc, SWT.NONE);
+				GridLayout gridLayout = new GridLayout();
+				gridLayout.marginHeight = 0;
+				gridLayout.marginWidth = 0;
+				comp.setLayout(gridLayout);
+
+				Label resolutionLabel = new Label(comp, SWT.NONE);
+				resolutionLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+				resolutionLabel.setText(Messages.JiraFilterDefinitionPage_Resolution);
+
+				resolution = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
+				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
+				gridData.heightHint = HEIGHT_HINT;
+				gridData.widthHint = WIDTH_HINT;
+				resolution.getList().setLayoutData(gridData);
+
+				resolution.setLabelProvider(new LabelProvider() {
+
+					@Override
+					public String getText(Object element) {
+						if (element instanceof Placeholder) {
+							return ((Placeholder) element).getText();
+						}
+
+						return ((Resolution) element).getName();
+					}
+
+				});
+			}
+
+			{
+				Composite comp = new Composite(cc, SWT.NONE);
+				GridLayout gridLayout = new GridLayout();
+				gridLayout.marginHeight = 0;
+				gridLayout.marginWidth = 0;
+				comp.setLayout(gridLayout);
+
+				Label priorityLabel = new Label(comp, SWT.NONE);
+				priorityLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+				priorityLabel.setText(Messages.JiraFilterDefinitionPage_Priority);
+
+				priority = new ListViewer(comp, SWT.V_SCROLL | SWT.MULTI | SWT.BORDER | SWT.H_SCROLL);
+				GridData gridData = new GridData(SWT.FILL, SWT.FILL, true, true);
+				gridData.heightHint = HEIGHT_HINT;
+				gridData.widthHint = WIDTH_HINT;
+				priority.getList().setLayoutData(gridData);
+
+				priority.setLabelProvider(new LabelProvider() {
+
+					@Override
+					public String getText(Object element) {
+						if (element instanceof Placeholder) {
+							return ((Placeholder) element).getText();
+						}
+
+						return ((Priority) element).getName();
+					}
+
+				});
+			}
+
+			cc.setWeights(new int[] { 1, 1, 1 });
+		}
+	}
+
+	private void createDatesContent(Composite c) {
 		ModifyListener wdhmLocalListener = new ModifyListener() {
 			public void modifyText(ModifyEvent e) {
 				validatePage();
@@ -1047,13 +1087,6 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 		{
 			Label createdLabel = new Label(c, SWT.NONE);
 			createdLabel.setText(Messages.JiraFilterDefinitionPage_Created + ":"); //$NON-NLS-1$
-
-//			Composite cc = new Composite(c, SWT.NONE);
-//			GridLayout ll = new GridLayout(2, false);
-//			ll.marginWidth = 0;
-//			ll.marginHeight = 0;
-//			cc.setLayout(ll);
-//			GridDataFactory.fillDefaults().span(2, 2).applyTo(cc);
 
 			Composite composite = new Composite(c, SWT.NONE);
 			GridLayout layout = new GridLayout(2, true);
@@ -1101,10 +1134,6 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 			createdTo = new Text(c2, SWT.BORDER);
 			GridDataFactory.fillDefaults().align(SWT.FILL, SWT.CENTER).grab(true, false).applyTo(createdTo);
 			createdTo.addModifyListener(wdhmLocalListener);
-
-//			Label explanation = new Label(cc, SWT.NONE);
-//			explanation.setText(Messages.JiraWdhmExplanation);
-//			GridDataFactory.fillDefaults().span(1, 2).align(SWT.LEFT, SWT.BOTTOM).applyTo(explanation);
 		}
 
 		{
@@ -1223,26 +1252,44 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 					+ "' " + Messages.JiraFilterDefinitionPage_And + " '" + Messages.JiraFilterDefinitionPage_To + "'")); //$NON-NLS-1$
 
 		}
+	}
 
-		{
-			// Label maxHitsLabel = new Label(c, SWT.NONE);
-			// maxHitsLabel.setText("Maximum Results:");
-			//
-			// Composite composite = new Composite(c, SWT.NONE);
-			// FillLayout fillLayout = new FillLayout();
-			// fillLayout.spacing = 5;
-			// composite.setLayout(fillLayout);
-			// composite.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false,
-			// false, 2, 1));
-		}
+	private void adjustLayoutData(Control control, boolean shouldGrabVertical) {
+		GridDataFactory.fillDefaults()
+				.indent(0, 5)
+				.grab(true, shouldGrabVertical)
+				.span(3, SWT.DEFAULT)
+				.applyTo(control);
+	}
 
-		// new FillLayout()f validation here
-		// if (isNew) {
-		loadDefaults();
-		// } else {
+	private ExpandableComposite createExpandableComposite(final Composite parentControl, String title,
+			final boolean shouldGrabVertical) {
+		final ExpandableComposite section = new ExpandableComposite(parentControl, ExpandableComposite.TWISTIE
+				| ExpandableComposite.CLIENT_INDENT | ExpandableComposite.COMPACT) {
 
-		// }
-		Dialog.applyDialogFont(parent);
+			@Override
+			public void setExpanded(boolean expanded) {
+				adjustLayoutData(this, expanded && shouldGrabVertical);
+				super.setExpanded(expanded);
+			}
+
+		};
+		section.clientVerticalSpacing = 0;
+		section.setBackground(parentControl.getBackground());
+		section.setFont(JFaceResources.getFontRegistry().getBold(JFaceResources.DIALOG_FONT));
+		section.addExpansionListener(new ExpansionAdapter() {
+			@Override
+			public void expansionStateChanged(ExpansionEvent e) {
+				if (shouldGrabVertical) {
+					adjustLayoutData(section, e.getState());
+				}
+				parentControl.layout(true);
+				getControl().getShell().pack();
+			}
+		});
+		section.setText(title);
+		adjustLayoutData(section, false);
+		return section;
 	}
 
 	private void createIssueTypesViewer(Composite comp) {
@@ -1794,7 +1841,7 @@ public class JiraFilterDefinitionPage extends AbstractRepositoryQueryPage {
 			return false;
 		}
 		FilterDefinitionConverter converter = new FilterDefinitionConverter(getTaskRepository().getCharacterEncoding(),
-				client.getConfiguration().getDateFormat());
+				client.getLocalConfiguration().getDateFormat());
 		this.workingCopy = converter.toFilter(client, searchUrl, false);
 		return true;
 	}

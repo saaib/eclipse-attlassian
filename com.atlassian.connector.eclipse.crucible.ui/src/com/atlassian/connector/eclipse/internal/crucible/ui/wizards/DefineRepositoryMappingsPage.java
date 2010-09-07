@@ -13,10 +13,10 @@ package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
 import com.atlassian.connector.eclipse.fisheye.ui.FishEyeUiUtil;
 import com.atlassian.connector.eclipse.fisheye.ui.preferences.SourceRepostioryMappingEditor;
-import com.atlassian.connector.eclipse.internal.core.AtlassianCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.TaskRepositoryUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
+import com.atlassian.connector.eclipse.internal.ui.IBrandingConstants;
 import com.atlassian.connector.eclipse.team.ui.AtlassianTeamUiPlugin;
 import com.atlassian.connector.eclipse.team.ui.ITeamUiResourceConnector;
 import com.atlassian.connector.eclipse.team.ui.LocalStatus;
@@ -85,14 +85,14 @@ public class DefineRepositoryMappingsPage extends WizardPage {
 				try {
 					FishEyeUiUtil.setScmRepositoryMappings(mappingEditor.getMapping());
 				} catch (IOException e) {
-					ErrorDialog.openError(getShell(), AtlassianCorePlugin.PRODUCT_NAME,
+					ErrorDialog.openError(getShell(), IBrandingConstants.PRODUCT_NAME,
 							"Error while saving FishEye mapping configuration", new Status(IStatus.ERROR,
 									CrucibleUiPlugin.PLUGIN_ID, e.getMessage(), e));
 				}
 				validatePage();
 			}
 		});
-		mappingEditor.setRepositoryMappings(FishEyeUiUtil.getScmRepositoryMappings());
+		mappingEditor.setRepositoryMappings(FishEyeUiUtil.getActiveScmRepositoryMappings());
 
 		return parent;
 	}

@@ -11,7 +11,6 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.dialogs;
 
-import com.atlassian.connector.eclipse.internal.core.AtlassianCorePlugin;
 import com.atlassian.connector.eclipse.internal.core.jobs.JobWithStatus;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
@@ -20,6 +19,7 @@ import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.LocalTeamResourceConnector;
 import com.atlassian.connector.eclipse.internal.crucible.ui.operations.AddDecoratedResourcesToReviewJob;
+import com.atlassian.connector.eclipse.internal.ui.IBrandingConstants;
 import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
 import com.atlassian.connector.eclipse.team.ui.ITeamUiResourceConnector;
 import com.atlassian.connector.eclipse.team.ui.TeamUiUtils;
@@ -151,7 +151,7 @@ public class CrucibleAddFileAddCommentDialog extends CrucibleAddCommentDialog {
 		// add comment
 		boolean ok = super.addComment();
 		if (ok && resource != null && decoratedResource != null && !decoratedResource.isUpToDate()) {
-			MessageDialog.openInformation(getShell(), AtlassianCorePlugin.PRODUCT_NAME,
+			MessageDialog.openInformation(getShell(), IBrandingConstants.PRODUCT_NAME,
 					"Please reopen the file in Review Explorer in order to see comment annotation.");
 		}
 

@@ -2,7 +2,7 @@
 <feature
       id="com.atlassian.connector.eclipse"
       label="%featureName"
-      version="2.1.0.qualifier"
+      version="2.3.0.qualifier"
       provider-name="%providerName"
       plugin="com.atlassian.connector.eclipse.branding.ui">
 
@@ -18,17 +18,18 @@
       %license
    </license>
 
-   <url>
-      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
-   </url>
-
-   <includes
-         id="com.atlassian.connector.eclipse.monitor"
-         version="0.0.0"/>
-
    <includes
          id="com.atlassian.connector.commons"
          version="0.0.0"/>
+
+   <includes
+         id="com.atlassian.connector.eclipse.commons"
+         version="0.0.0"/>
+
+   <includes
+         id="com.atlassian.connector.eclipse.monitor"
+         version="0.0.0"
+         optional="true"/>
 
    <requires>
       <import plugin="org.eclipse.ui"/>
@@ -36,9 +37,6 @@
       <import plugin="org.eclipse.core.resources"/>
       <import plugin="org.eclipse.ui.ide"/>
       <import plugin="com.atlassian.connector.commons"/>
-      <import plugin="org.eclipse.mylyn.commons.core"/>
-      <import plugin="org.eclipse.mylyn.commons.ui"/>
-      <import plugin="com.atlassian.connector.eclipse.ui"/>
       <import plugin="org.eclipse.ui.workbench.texteditor"/>
       <import plugin="org.eclipse.jface.text"/>
       <import plugin="org.eclipse.mylyn.tasks.ui"/>
@@ -52,17 +50,17 @@
       <import plugin="org.eclipse.core.filesystem"/>
       <import plugin="org.eclipse.ui.forms"/>
       <import plugin="org.eclipse.ui.editors"/>
-      <import plugin="org.eclipse.mylyn.commons.net" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.monitor.ui" version="3.0.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.monitor.core" version="3.0.0" match="compatible"/>
       <import feature="org.eclipse.mylyn_feature" version="3.2.0.I20090529" match="compatible"/>
-      <import plugin="com.atlassian.connector.eclipse.core"/>
+      <import plugin="org.eclipse.mylyn.commons.net" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.ui" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.core" version="3.2.0" match="compatible"/>
       <import plugin="org.eclipse.team.core"/>
       <import plugin="org.eclipse.team.ui"/>
       <import plugin="org.eclipse.jface"/>
       <import plugin="org.eclipse.compare"/>
       <import plugin="org.joda.time"/>
-      <import plugin="com.atlassian.connector.eclipse.monitor.usage"/>
    </requires>
 
    <plugin
@@ -99,5 +97,26 @@
          install-size="0"
          version="0.0.0"
          unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.core"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
    
+   <plugin
+         id="com.atlassian.connector.eclipse.help"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
 </feature>

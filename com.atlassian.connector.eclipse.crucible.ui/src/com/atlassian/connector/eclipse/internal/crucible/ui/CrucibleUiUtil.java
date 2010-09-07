@@ -28,10 +28,12 @@ import com.atlassian.connector.eclipse.team.ui.ITeamUiResourceConnector;
 import com.atlassian.connector.eclipse.team.ui.TeamUiResourceManager;
 import com.atlassian.connector.eclipse.team.ui.TeamUiUtils;
 import com.atlassian.connector.eclipse.team.ui.exceptions.UnsupportedTeamProviderException;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicReview;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleVersionInfo;
+import com.atlassian.theplugin.commons.crucible.api.model.ExtendedCrucibleProject;
 import com.atlassian.theplugin.commons.crucible.api.model.Repository;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
@@ -39,6 +41,7 @@ import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
+import com.atlassian.theplugin.commons.util.MiscUtil;
 import com.atlassian.theplugin.commons.util.StringUtil;
 
 import org.apache.commons.io.FileUtils;
@@ -48,6 +51,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.jface.operation.IRunnableContext;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.wizard.IWizardContainer;
 import org.eclipse.jface.wizard.WizardPage;
@@ -65,6 +69,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -73,11 +78,11 @@ import java.util.Set;
  * Utility class for the UI
  * 
  * @author Shawn Minto
+ * @author Wojciech Seliga
  */
 public final class CrucibleUiUtil {
 
 	private CrucibleUiUtil() {
-		// ignore
 	}
 
 	public static TaskRepository getCrucibleTaskRepository(String repositoryUrl) {
@@ -95,7 +100,7 @@ public final class CrucibleUiUtil {
 	}
 
 	@Nullable
-	public static TaskRepository getCrucibleTaskRepository(Review review) {
+	public static TaskRepository getCrucibleTaskRepository(BasicReview review) {
 		if (review != null) {
 			String repositoryUrl = review.getServerUrl();
 			if (repositoryUrl != null) {
@@ -105,7 +110,7 @@ public final class CrucibleUiUtil {
 		return null;
 	}
 
-	public static CrucibleClient getClient(Review review) {
+	public static CrucibleClient getClient(BasicReview review) {
 		CrucibleRepositoryConnector connector = CrucibleCorePlugin.getRepositoryConnector();
 		return connector.getClientManager().getClient(getCrucibleTaskRepository(review));
 	}
@@ -155,7 +160,8 @@ public final class CrucibleUiUtil {
 		return new Reviewer(user.getUsername(), user.getDisplayName(), completed);
 	}
 
-	public static String getCurrentUsername(TaskRepository repository) {
+	@Nullable
+	public static String getCurrentUsername(@NotNull TaskRepository repository) {
 		/*
 		 * String currentUser = CrucibleCorePlugin.getRepositoryConnector() .getClientManager() .getClient(repository)
 		 * .getUserName();
@@ -163,10 +169,12 @@ public final class CrucibleUiUtil {
 		return repository.getUserName();
 	}
 
-	public static User getCachedUser(String userName, TaskRepository repository) {
-		for (User user : getCachedUsers(repository)) {
-			if (userName.equals(user.getUsername())) {
-				return user;
+	public static User getCachedUser(@Nullable String userName, TaskRepository repository) {
+		if (userName != null) {
+			for (User user : getCachedUsers(repository)) {
+				if (userName.equals(user.getUsername())) {
+					return user;
+				}
 			}
 		}
 		return null;
@@ -237,6 +245,11 @@ public final class CrucibleUiUtil {
 		return repositories;
 	}
 
+	/**
+	 * 
+	 * @param repository
+	 * @return <code>null</code> when such information has not been yet cached
+	 */
 	@Nullable
 	public static CrucibleVersionInfo getCrucibleVersionInfo(TaskRepository repository) {
 		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
@@ -246,17 +259,53 @@ public final class CrucibleUiUtil {
 		return clientData == null ? null : clientData.getVersionInfo();
 	}
 
-	public static Set<CrucibleProject> getCachedProjects(TaskRepository repository) {
+	public static Collection<BasicProject> getCachedProjects(TaskRepository repository) {
 		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
 				.getClientManager()
 				.getCrucibleClientData(repository);
-		Set<CrucibleProject> projects;
 		if (clientData == null) {
-			projects = new HashSet<CrucibleProject>();
+			return Collections.emptyList();
 		} else {
-			projects = clientData.getCachedProjects();
+			return clientData.getCachedProjects();
 		}
-		return projects;
+	}
+
+	@Nullable
+	public static BasicProject getCachedProject(TaskRepository repository, String projectKey) {
+		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(repository);
+
+		if (clientData == null) {
+			return null;
+		}
+		return clientData.getCrucibleProject(projectKey);
+	}
+
+	public static Collection<User> getUsersFromUsernames(TaskRepository taskRepository, Collection<String> usernames) {
+		Set<User> users = CrucibleUiUtil.getCachedUsers(taskRepository);
+		Set<User> result = MiscUtil.buildHashSet();
+		for (User user : users) {
+			if (usernames.contains(user.getUsername())) {
+				result.add(user);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * 
+	 * @return <code>null</code> when there is no cached information about allowed reviewers
+	 */
+	@Nullable
+	public static Collection<User> getAllowedReviewers(TaskRepository taskRepository, String projectKey) {
+		BasicProject project = getCachedProject(taskRepository, projectKey);
+		if (project instanceof ExtendedCrucibleProject) {
+			ExtendedCrucibleProject extendedProject = (ExtendedCrucibleProject) project;
+			return getUsersFromUsernames(taskRepository, extendedProject.getAllowedReviewers());
+		}
+		return null;
+
 	}
 
 	public static boolean canModifyComment(Review review, Comment comment) {
@@ -285,22 +334,26 @@ public final class CrucibleUiUtil {
 	}
 
 	@NotNull
-	public static Set<Reviewer> getAllCachedUsersAsReviewers(@NotNull Review review) {
+	public static Set<Reviewer> getAllCachedUsersAsReviewers(@NotNull TaskRepository taskRepository) {
+		return toReviewers(CrucibleUiUtil.getCachedUsers(taskRepository));
+	}
+
+	@NotNull
+	public static Set<Reviewer> toReviewers(@NotNull Collection<User> users) {
 		Set<Reviewer> allReviewers = new HashSet<Reviewer>();
-		for (User user : CrucibleUiUtil.getCachedUsers(review)) {
-			Reviewer reviewer = CrucibleUiUtil.createReviewerFromCachedUser(review, user);
-			allReviewers.add(reviewer);
+		for (User user : users) {
+			allReviewers.add(new Reviewer(user.getUsername(), user.getDisplayName(), false));
 		}
 		return allReviewers;
 	}
 
 	@NotNull
-	public static Set<Reviewer> getAllCachedUsersAsReviewers(@NotNull TaskRepository taskRepository) {
-		Set<Reviewer> allReviewers = new HashSet<Reviewer>();
-		for (User user : CrucibleUiUtil.getCachedUsers(taskRepository)) {
-			allReviewers.add(new Reviewer(user.getUsername(), user.getDisplayName(), false));
+	public static Set<User> toUsers(@NotNull Collection<Reviewer> users) {
+		Set<User> res = new HashSet<User>();
+		for (Reviewer user : users) {
+			res.add(new User(user.getUsername(), user.getDisplayName(), user.getAvatarUrl()));
 		}
-		return allReviewers;
+		return res;
 	}
 
 	public static void focusOnComment(IEditorPart editor, CrucibleFile crucibleFile, VersionedComment versionedComment) {
@@ -336,6 +389,31 @@ public final class CrucibleUiUtil {
 		}
 		if (!CrucibleUiUtil.hasCachedData(taskRepository)) {
 			currentPage.setErrorMessage("Could not retrieve available projects and users from server.");
+		}
+	}
+
+	public static boolean updateProjectDetailsCache(@NotNull final TaskRepository taskRepository,
+			@NotNull final String projectKey, @NotNull IRunnableContext container) {
+		IRunnableWithProgress runnable = new IRunnableWithProgress() {
+			public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
+				CrucibleRepositoryConnector connector = CrucibleCorePlugin.getRepositoryConnector();
+				CrucibleClient client = connector.getClientManager().getClient(taskRepository);
+				if (client != null) {
+					try {
+						client.updateProjectDetails(monitor, taskRepository, projectKey);
+					} catch (CoreException e) {
+						throw new InvocationTargetException(e);
+					}
+				}
+			}
+		};
+		try {
+			container.run(true, true, runnable);
+			return true;
+		} catch (Exception ex) {
+			StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID, "Failed to update repository data",
+					ex));
+			return false;
 		}
 	}
 

@@ -40,8 +40,8 @@ import org.eclipse.mylyn.tasks.core.IRepositoryPerson;
 import org.eclipse.mylyn.tasks.core.ITask;
 import org.eclipse.mylyn.tasks.core.ITaskMapping;
 import org.eclipse.mylyn.tasks.core.RepositoryResponse;
-import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.core.RepositoryResponse.ResponseKind;
+import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.core.data.AbstractTaskDataHandler;
 import org.eclipse.mylyn.tasks.core.data.TaskAttachmentMapper;
 import org.eclipse.mylyn.tasks.core.data.TaskAttribute;
@@ -118,7 +118,15 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 
 	private static final String REASSIGN_OPERATION = "reassign"; //$NON-NLS-1$
 
-	private static final String STOP_PROGRESS_OPERATION = "301"; //$NON-NLS-1$
+	public static final String STOP_PROGRESS_OPERATION = "301"; //$NON-NLS-1$
+
+	public static final String START_PROGRESS_OPERATION = "4"; //$NON-NLS-1$	
+
+	public static final Object IN_PROGRESS_STATUS = "3"; //$NON-NLS-1$
+
+	public static final Object OPEN_STATUS = "1"; //$NON-NLS-1$
+
+	public static final Object REOPEN_STATUS = "4"; //$NON-NLS-1$
 
 	private static final String LEAVE_OPERATION = "leave"; //$NON-NLS-1$
 
@@ -311,6 +319,8 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 
 		data.getRoot().createAttribute(WorkLogConverter.ATTRIBUTE_WORKLOG_NEW);
 
+//		data.getRoot().createAttribute(WorkLogConverter.ATTRIBUTE_WORKLOG_MYLYN_ACTIVITY_DELTA);
+
 		TaskAttribute projectRoles = createAttribute(data, JiraAttribute.PROJECT_ROLES);
 		projectRoles.putOption(IJiraConstants.NEW_COMMENT_VIEWABLE_BY_ALL, IJiraConstants.NEW_COMMENT_VIEWABLE_BY_ALL);
 		ProjectRole[] roles = client.getCache().getProjectRoles();
@@ -319,6 +329,8 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 				projectRoles.putOption(projectRole.getName(), projectRole.getName());
 			}
 		}
+
+		createAttribute(data, JiraAttribute.VOTES);
 	}
 
 	public TaskAttribute createAttribute(TaskData data, JiraAttribute key) {
@@ -402,10 +414,10 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		setAttributeValue(data, JiraAttribute.RESOLUTION, //
 				jiraIssue.getResolution() == null ? "" : jiraIssue.getResolution().getId()); //$NON-NLS-1$
 		setAttributeValue(data, JiraAttribute.MODIFICATION_DATE, JiraUtil.dateToString(jiraIssue.getUpdated()));
-		setAttributeValue(data, JiraAttribute.USER_ASSIGNED, getPerson(data, client, jiraIssue.getAssignee(),
-				jiraIssue.getAssigneeName()));
-		setAttributeValue(data, JiraAttribute.USER_REPORTER, getPerson(data, client, jiraIssue.getReporter(),
-				jiraIssue.getReporterName()));
+		setAttributeValue(data, JiraAttribute.USER_ASSIGNED,
+				getPerson(data, client, jiraIssue.getAssignee(), jiraIssue.getAssigneeName()));
+		setAttributeValue(data, JiraAttribute.USER_REPORTER,
+				getPerson(data, client, jiraIssue.getReporter(), jiraIssue.getReporterName()));
 		setAttributeValue(data, JiraAttribute.PROJECT, jiraIssue.getProject().getId());
 
 		if (jiraIssue.getStatus() != null) {
@@ -486,6 +498,12 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 			setAttributeValue(data, JiraAttribute.ENVIRONMENT, jiraIssue.getEnvironment());
 		} else {
 			removeAttribute(data, JiraAttribute.ENVIRONMENT);
+		}
+
+		if (jiraIssue.getVotes() > 0) {
+			setAttributeValue(data, JiraAttribute.VOTES, Integer.toString(jiraIssue.getVotes()));
+		} else {
+			removeAttribute(data, JiraAttribute.VOTES);
 		}
 
 		addAttributeValue(data, JiraAttribute.PROJECT_ROLES, IJiraConstants.NEW_COMMENT_VIEWABLE_BY_ALL);
@@ -771,12 +789,12 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 
 			// use cached information
 			if (data.getRoot().getAttribute(TaskAttribute.DESCRIPTION) != null) {
-				setAttributeValue(data, JiraAttribute.DESCRIPTION, getAttributeValue(oldTaskData,
-						JiraAttribute.DESCRIPTION));
+				setAttributeValue(data, JiraAttribute.DESCRIPTION,
+						getAttributeValue(oldTaskData, JiraAttribute.DESCRIPTION));
 			}
 			if (data.getRoot().getAttribute(IJiraConstants.ATTRIBUTE_ENVIRONMENT) != null) {
-				setAttributeValue(data, JiraAttribute.ENVIRONMENT, getAttributeValue(oldTaskData,
-						JiraAttribute.ENVIRONMENT));
+				setAttributeValue(data, JiraAttribute.ENVIRONMENT,
+						getAttributeValue(oldTaskData, JiraAttribute.ENVIRONMENT));
 			}
 			for (CustomField field : jiraIssue.getCustomFields()) {
 				if (field.isMarkupDetected()) {
@@ -1009,7 +1027,7 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 					client.getCache().refreshDetails(monitor);
 				}
 
-				JiraIssue issue = buildJiraIssue(taskData, client);
+				JiraIssue issue = buildJiraIssue(taskData);
 				if (taskData.isNew()) {
 					if (issue.getType().isSubTaskType() && issue.getParentId() != null) {
 						issue = client.createSubTask(issue, monitor);
@@ -1060,6 +1078,7 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 					}
 
 					boolean handled = false;
+					boolean advWorkflowHandled = false;
 
 					// if only reassigning do not do the workflow
 					if (!handled && changeIds.contains(TaskAttribute.USER_ASSIGNED)) {
@@ -1073,35 +1092,48 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 						}
 					}
 
-					// stop progress must be run before issue is updated because assignee can be changed on update
-					// and this will cause stop progress to fail
-					if (STOP_PROGRESS_OPERATION.equals(operationId)) {
-						client.advanceIssueWorkflow(issue, operationId, null, monitor); //comment gets updated in the normal workflow already, so don"t post it a second time
+					// if only adv workflow do not do the standard workflow
+					if (!handled && changeIds.contains(TaskAttribute.OPERATION)) {
+						Set<String> anythingElse = new HashSet<String>(changeIds);
+						anythingElse.removeAll(Arrays.asList(TaskAttribute.OPERATION, TaskAttribute.COMMENT_NEW));
+						if (anythingElse.size() == 0) {
+							// no more changes, so that's a adv workflow operation
+							client.advanceIssueWorkflow(issue, operationId, newComment, monitor);
+							handled = true;
+							advWorkflowHandled = true;
+						}
+					}
+
+					// stop progress must be run before issue is updated because assignee can be changed on update and this will cause stop progress to fail
+					if (!handled && STOP_PROGRESS_OPERATION.equals(operationId)) {
+						client.advanceIssueWorkflow(issue, operationId, null, monitor); //comment will be updated in the normal workflow, so don't post it here
+						advWorkflowHandled = true;
 					}
 
 					// if only comment was modified do not do the workflow
 					if (!handled //
 							&& !JiraRepositoryConnector.isClosed(issue)
 							&& taskData.getRoot().getMappedAttribute(IJiraConstants.ATTRIBUTE_READ_ONLY) == null
-							&& !changeIds.equals(Collections.singleton(TaskAttribute.COMMENT_NEW))) {
+							&& !changeIds.equals(Collections.singleton(TaskAttribute.COMMENT_NEW))
+							&& !(STOP_PROGRESS_OPERATION.equals(operationId) && changeIds.equals(Collections.singleton(TaskAttribute.OPERATION)))) {
 						client.updateIssue(issue, newComment, monitor);
 						handled = true;
 					}
 
 					// at last try to at least post the comment (if everything else failed)
 					if (!handled && newComment != null && newComment.length() > 0) {
-						client.addCommentToIssue(issue, newComment, monitor);
+						client.addCommentToIssue(issue.getKey(), newComment, monitor);
 						handled = true;
 					} else if (soapComment != null) {
-						client.addComentToIssueWithViewable(issue.getKey(), soapComment, monitor);
+						client.addCommentToIssue(issue.getKey(), soapComment, monitor);
 						handled = true;
 					}
 
 					postWorkLog(repository, client, taskData, issue, monitor);
 
 					// and do advanced workflow if necessary
-					if (!LEAVE_OPERATION.equals(operationId) && !REASSIGN_OPERATION.equals(operationId)
-							&& !STOP_PROGRESS_OPERATION.equals(operationId)) {
+					if (!advWorkflowHandled && !LEAVE_OPERATION.equals(operationId)
+							&& !REASSIGN_OPERATION.equals(operationId) && !STOP_PROGRESS_OPERATION.equals(operationId)) {
 						client.advanceIssueWorkflow(issue, operationId, null, monitor); //comment gets updated in the normal workflow already, so don"t post it a second time
 					}
 					return new RepositoryResponse(ResponseKind.TASK_UPDATED, issue.getId());
@@ -1281,7 +1313,7 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		return (value == null) ? true : !Boolean.parseBoolean(value);
 	}
 
-	private JiraIssue buildJiraIssue(TaskData taskData, JiraClient client) {
+	public static JiraIssue buildJiraIssue(TaskData taskData) {
 		JiraIssue issue = new JiraIssue();
 		issue.setId(taskData.getTaskId());
 		issue.setKey(getAttributeValue(taskData, JiraAttribute.ISSUE_KEY));
@@ -1388,16 +1420,16 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		return Boolean.parseBoolean(typeAttribute.getMetaData().getValue(IJiraConstants.META_SUB_TASK_TYPE));
 	}
 
-	private TaskAttribute getAttribute(TaskData taskData, JiraAttribute key) {
+	private static TaskAttribute getAttribute(TaskData taskData, JiraAttribute key) {
 		return taskData.getRoot().getAttribute(key.id());
 	}
 
-	private String getAttributeValue(TaskData taskData, JiraAttribute key) {
+	private static String getAttributeValue(TaskData taskData, JiraAttribute key) {
 		TaskAttribute attribute = taskData.getRoot().getAttribute(key.id());
 		return (attribute != null) ? attribute.getValue() : null;
 	}
 
-	private Date getDateValue(TaskData data, JiraAttribute key) {
+	private static Date getDateValue(TaskData data, JiraAttribute key) {
 		TaskAttribute attribute = data.getRoot().getAttribute(key.id());
 		return (attribute != null) ? data.getAttributeMapper().getDateValue(attribute) : null;
 	}

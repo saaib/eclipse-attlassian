@@ -204,7 +204,7 @@ public class AddOrEditFishEyeMappingDialog extends ProgressDialog {
 
 	private Text scmPathEdit;
 
-	private final Set<TaskRepository> taskRepositories;
+	private final Set<TaskRepository> taskRepositories = MiscUtil.buildHashSet();
 
 	private final FishEyeClientManager fishEyeClientManager;
 
@@ -249,7 +249,13 @@ public class AddOrEditFishEyeMappingDialog extends ProgressDialog {
 		setShellStyle(getShellStyle() | SWT.RESIZE);
 
 		this.isAddMode = sourceRepository == null || taskRepository == null;
-		this.taskRepositories = FishEyeUiUtil.getFishEyeAndCrucibleServers();
+
+		for(TaskRepository tr : FishEyeUiUtil.getFishEyeAndCrucibleServers()) {
+			if (!tr.isOffline()) {
+				taskRepositories.add(tr);
+			}
+		}
+
 		this.scmPath = scmPath;
 		this.sourceRepository = sourceRepository;
 		this.taskRepository = taskRepository;
@@ -475,7 +481,7 @@ public class AddOrEditFishEyeMappingDialog extends ProgressDialog {
 
 	protected Collection<String> getRepositoriesFromClient(IClientDataProvider client) {
 		Collection<String> repositories = MiscUtil.buildArrayList();
-		Object clientData = (client).getClientData();
+		Object clientData = client.getClientData();
 		if (clientData instanceof FishEyeClientData) {
 			repositories.addAll(((FishEyeClientData) clientData).getCachedRepositories());
 		} else if (clientData instanceof CrucibleClientData) {

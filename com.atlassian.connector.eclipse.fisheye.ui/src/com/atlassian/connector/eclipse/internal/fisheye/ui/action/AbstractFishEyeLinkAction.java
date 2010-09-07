@@ -15,8 +15,9 @@ import com.atlassian.connector.eclipse.fisheye.ui.FishEyeUiUtil;
 import com.atlassian.connector.eclipse.fisheye.ui.preferences.FishEyePreferenceContextData;
 import com.atlassian.connector.eclipse.fisheye.ui.preferences.NoMatchingFishEyeConfigurationException;
 import com.atlassian.connector.eclipse.fisheye.ui.preferences.SourceRepositoryMappingPreferencePage;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.ErrorDialogWithHyperlink;
+import com.atlassian.connector.eclipse.internal.fisheye.core.FishEyeCorePlugin;
 import com.atlassian.connector.eclipse.internal.fisheye.ui.FishEyeUiPlugin;
-import com.atlassian.connector.eclipse.internal.fisheye.ui.dialogs.ErrorDialogWithHyperlink;
 import com.atlassian.connector.eclipse.team.ui.LocalStatus;
 import com.atlassian.connector.eclipse.team.ui.ScmRepository;
 import com.atlassian.connector.eclipse.team.ui.TeamUiUtils;
@@ -25,9 +26,11 @@ import com.atlassian.connector.eclipse.ui.commons.ResourceEditorBean;
 
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.preference.PreferenceDialog;
 import org.eclipse.jface.text.source.LineRange;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.jetbrains.annotations.NotNull;
@@ -39,6 +42,12 @@ public abstract class AbstractFishEyeLinkAction extends AbstractResourceAction {
 
 	public AbstractFishEyeLinkAction(String text) {
 		super(text);
+	}
+
+	@Override
+	public void run(IAction action) {
+		FishEyeCorePlugin.getMonitoring().logAction(getText(), null);
+		super.run(action);
 	}
 
 	protected abstract void processUrl(String url);
@@ -66,6 +75,7 @@ public abstract class AbstractFishEyeLinkAction extends AbstractResourceAction {
 					}
 				}
 			} catch (CoreException e) {
+				StatusHandler.log(e.getStatus());
 				isEnabled = false;
 			}
 		}

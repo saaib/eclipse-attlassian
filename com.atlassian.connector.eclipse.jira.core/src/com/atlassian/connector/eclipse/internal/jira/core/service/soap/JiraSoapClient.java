@@ -18,7 +18,13 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -37,6 +43,7 @@ import org.eclipse.osgi.util.NLS;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
+import com.atlassian.connector.eclipse.internal.jira.core.JiraFieldType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Comment;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Component;
 import com.atlassian.connector.eclipse.internal.jira.core.model.CustomField;
@@ -44,6 +51,8 @@ import com.atlassian.connector.eclipse.internal.jira.core.model.Group;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraAction;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraConfiguration;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraIssue;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraStatus;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraVersion;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraWorkLog;
@@ -57,12 +66,16 @@ import com.atlassian.connector.eclipse.internal.jira.core.model.ServerInfo;
 import com.atlassian.connector.eclipse.internal.jira.core.model.User;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Version;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraAuthenticationException;
+import com.atlassian.connector.eclipse.internal.jira.core.service.JiraCaptchaRequiredException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraClient;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraInsufficientPermissionException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraServiceUnavailableException;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraTimeFormat;
+import com.atlassian.connector.eclipse.internal.jira.core.service.web.rss.JiraRssHandler;
+import com.atlassian.connector.eclipse.internal.jira.core.util.JiraUtil;
 import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteField;
+import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteFieldValue;
 import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteIssue;
 import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteNamedObject;
 import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteProjectRole;
@@ -154,6 +167,15 @@ public class JiraSoapClient extends AbstractSoapClient {
 			public Component[] call() throws java.rmi.RemoteException, JiraException {
 				return JiraSoapConverter.convert(getSoapService().getComponents(loginToken.getCurrentValue(),
 						projectKey));
+			}
+		});
+	}
+
+	public JiraConfiguration getConfiguration(IProgressMonitor monitor) throws JiraException {
+		return call(monitor, new Callable<JiraConfiguration>() {
+
+			public JiraConfiguration call() throws Exception {
+				return JiraSoapConverter.convert(getSoapService().getConfiguration(loginToken.getCurrentValue()));
 			}
 		});
 	}
@@ -516,8 +538,12 @@ public class JiraSoapClient extends AbstractSoapClient {
 		try {
 			return super.callOnce(monitor, runnable);
 		} catch (RemotePermissionException e) {
-			throw new JiraInsufficientPermissionException(e.getMessage());
+			throw new JiraInsufficientPermissionException(e.getFaultString());
 		} catch (RemoteAuthenticationException e) {
+			String msg = e.toString();
+			if (msg.contains("maximum") || msg.contains("elevated security check")) { //$NON-NLS-1$ //$NON-NLS-2$
+				throw new JiraCaptchaRequiredException(e.getMessage());
+			}
 			throw new JiraAuthenticationException(e.getMessage());
 		} catch (RemoteException e) {
 			String message = e.getMessage();
@@ -545,7 +571,7 @@ public class JiraSoapClient extends AbstractSoapClient {
 
 	@Override
 	protected boolean isAuthenticationException(Exception e) {
-		return e instanceof JiraAuthenticationException;
+		return e instanceof JiraAuthenticationException && !(e instanceof JiraCaptchaRequiredException);
 	}
 
 	@Override
@@ -642,15 +668,23 @@ public class JiraSoapClient extends AbstractSoapClient {
 			throws JiraException {
 		return call(monitor, new Callable<JiraWorkLog>() {
 			public JiraWorkLog call() throws java.rmi.RemoteException, JiraException {
-				JiraTimeFormat formatter = new JiraTimeFormat(jiraClient.getConfiguration().getWorkDaysPerWeek(),
-						jiraClient.getConfiguration().getWorkHoursPerDay());
+				JiraTimeFormat formatter = new JiraTimeFormat(JiraUtil.getWorkDaysPerWeek(jiraClient),
+						JiraUtil.getWorkHoursPerDay(jiraClient));
 				RemoteWorklog remoteLog = JiraSoapConverter.convert(log, formatter);
-				if (log.isAutoAdjustEstimate()) {
+				switch (log.getAdjustEstimate()) {
+				case AUTO:
 					remoteLog = getSoapService().addWorklogAndAutoAdjustRemainingEstimate(loginToken.getCurrentValue(),
 							issueKey, remoteLog);
-				} else {
+					break;
+				case LEAVE:
 					remoteLog = getSoapService().addWorklogAndRetainRemainingEstimate(loginToken.getCurrentValue(),
 							issueKey, remoteLog);
+					break;
+				case SET:
+				case REDUCE:
+					remoteLog = getSoapService().addWorklogWithNewRemainingEstimate(loginToken.getCurrentValue(),
+							issueKey, remoteLog, formatter.format(log.getNewRemainingEstimate()));
+					break;
 				}
 				return (remoteLog != null) ? JiraSoapConverter.convert(remoteLog) : null;
 			}
@@ -661,6 +695,16 @@ public class JiraSoapClient extends AbstractSoapClient {
 		call(monitor, new Callable<Object>() {
 			public Object call() throws java.rmi.RemoteException, JiraException {
 				getSoapService().addComment(loginToken.getCurrentValue(), issueKey, JiraSoapConverter.convert(comment));
+				return null;
+			}
+		});
+	}
+
+	public void assignIssueTo(final String issueKey, final String user, IProgressMonitor monitor) throws JiraException {
+		call(monitor, new Callable<Object>() {
+			public Object call() throws java.rmi.RemoteException, JiraException {
+				RemoteFieldValue field = new RemoteFieldValue("assignee", new String[] { user }); //$NON-NLS-1$
+				getSoapService().updateIssue(loginToken.getCurrentValue(), issueKey, new RemoteFieldValue[] { field });
 				return null;
 			}
 		});
@@ -678,4 +722,265 @@ public class JiraSoapClient extends AbstractSoapClient {
 		});
 	}
 
+	public void deleteIssue(final String issueKey, IProgressMonitor monitor) throws JiraException {
+		call(monitor, new Callable<Object>() {
+			public Object call() throws java.rmi.RemoteException, JiraException {
+				getSoapService().deleteIssue(loginToken.getCurrentValue(), issueKey);
+				return null;
+			}
+		});
+	}
+
+	public boolean addAttachmentsToIssue(final String issueKey, final String[] filenames, final byte[][] files,
+			IProgressMonitor monitor) throws JiraException {
+		return call(monitor, new Callable<Boolean>() {
+			public Boolean call() throws java.rmi.RemoteException, JiraException {
+				return getSoapService().addAttachmentsToIssue(loginToken.getCurrentValue(), issueKey, filenames, files);
+			}
+		});
+	}
+
+	public void updateIssue(final JiraIssue issue, IProgressMonitor monitor) throws JiraException {
+		call(monitor, new Callable<Object>() {
+			public Object call() throws java.rmi.RemoteException, JiraException {
+				final List<RemoteFieldValue> fields = new ArrayList<RemoteFieldValue>();
+
+				fields.add(new RemoteFieldValue("summary", new String[] { issue.getSummary() })); //$NON-NLS-1$
+				fields.add(new RemoteFieldValue("issuetype", new String[] { issue.getType().getId() })); //$NON-NLS-1$
+				if (issue.getPriority() != null) {
+					fields.add(new RemoteFieldValue("priority", new String[] { issue.getPriority().getId() })); //$NON-NLS-1$
+				}
+
+				if (issue.getDue() != null) {
+					DateFormat format = jiraClient.getLocalConfiguration().getDateFormat();
+					fields.add(new RemoteFieldValue("duedate", new String[] { format.format(issue.getDue()) })); //$NON-NLS-1$
+				} else {
+					fields.add(new RemoteFieldValue("duedate", new String[] { "" })); //$NON-NLS-1$ //$NON-NLS-2$
+				}
+
+				fields.add(new RemoteFieldValue(
+						"timetracking", new String[] { Long.toString(issue.getEstimate() / 60) + "m" })); //$NON-NLS-1$ //$NON-NLS-2$
+
+				Component[] components = issue.getComponents();
+				if (components != null) {
+					if (components.length == 0) {
+						fields.add(new RemoteFieldValue("components", new String[] { "-1" })); //$NON-NLS-1$ //$NON-NLS-2$
+					} else {
+						List<String> values = new ArrayList<String>();
+						for (Component component : components) {
+							values.add(component.getId());
+						}
+						fields.add(new RemoteFieldValue("components", values.toArray(new String[0]))); //$NON-NLS-1$
+					}
+				}
+
+				Version[] versions = issue.getReportedVersions();
+				if (versions != null) {
+					if (versions.length == 0) {
+						fields.add(new RemoteFieldValue("versions", new String[] { "-1" })); //$NON-NLS-1$ //$NON-NLS-2$
+					} else {
+						List<String> values = new ArrayList<String>();
+						for (Version version : versions) {
+							values.add(version.getId());
+						}
+						fields.add(new RemoteFieldValue("versions", values.toArray(new String[0]))); //$NON-NLS-1$
+					}
+				}
+
+				Version[] fixVersions = issue.getFixVersions();
+				if (fixVersions != null) {
+					if (fixVersions.length == 0) {
+						fields.add(new RemoteFieldValue("fixVersions", new String[] { "-1" })); //$NON-NLS-1$ //$NON-NLS-2$
+					} else {
+						List<String> values = new ArrayList<String>();
+						for (Version fixVersion : fixVersions) {
+							values.add(fixVersion.getId());
+						}
+						fields.add(new RemoteFieldValue("fixVersions", values.toArray(new String[0]))); //$NON-NLS-1$
+					}
+				}
+
+				// TODO need to be able to choose unassigned and automatic
+				if (issue.getAssignee() != null) {
+					fields.add(new RemoteFieldValue("assignee", new String[] { issue.getAssignee() })); //$NON-NLS-1$
+				} else {
+					fields.add(new RemoteFieldValue("assignee", new String[] { "-1" })); //$NON-NLS-1$ //$NON-NLS-2$
+				}
+				if (issue.getReporter() != null) {
+					fields.add(new RemoteFieldValue("reporter", new String[] { issue.getReporter() })); //$NON-NLS-1$
+				}
+				if (issue.getEnvironment() != null) {
+					fields.add(new RemoteFieldValue("environment", new String[] { issue.getEnvironment() })); //$NON-NLS-1$
+				}
+				fields.add(new RemoteFieldValue("description", new String[] { issue.getDescription() })); //$NON-NLS-1$
+
+				if (issue.getSecurityLevel() != null) {
+					fields.add(new RemoteFieldValue("security", new String[] { issue.getSecurityLevel().getId() })); //$NON-NLS-1$
+				} else {
+					fields.add(new RemoteFieldValue("security", new String[] { "-1" })); //$NON-NLS-1$ //$NON-NLS-2$
+				}
+
+				addCustomFields(fields, issue);
+
+				getSoapService().updateIssue(loginToken.getCurrentValue(), issue.getKey(),
+						fields.toArray(new RemoteFieldValue[fields.size()]));
+				return null;
+			}
+
+		});
+	}
+
+	private void addCustomFields(List<RemoteFieldValue> fields, JiraIssue issue) {
+		for (CustomField customField : issue.getCustomFields()) {
+			addCustomField(fields, customField);
+		}
+	}
+
+	private void addCustomField(List<RemoteFieldValue> fields, CustomField customField) {
+		for (String value : customField.getValues()) {
+			String key = customField.getKey();
+			if (includeCustomField(key, value)) {
+				if (value != null
+						&& (JiraFieldType.DATE.getKey().equals(key) || JiraFieldType.DATETIME.getKey().equals(key))) {
+					try {
+						Date date = JiraRssHandler.getDateTimeFormat().parse(value);
+						DateFormat format;
+						if (JiraFieldType.DATE.getKey().equals(key)) {
+							format = jiraClient.getLocalConfiguration().getDateFormat();
+						} else {
+							format = jiraClient.getLocalConfiguration().getDateTimeFormat();
+						}
+						value = format.format(date);
+					} catch (ParseException e) {
+						// XXX ignore
+					}
+				}
+				fields.add(new RemoteFieldValue(customField.getId(), new String[] { value == null ? "" : value })); //$NON-NLS-1$
+			}
+		}
+	}
+
+	private boolean includeCustomField(String key, String value) {
+		if (key == null) {
+			return true;
+		}
+
+		if (key.startsWith("com.pyxis.greenhopper.jira:greenhopper-ranking")) { //$NON-NLS-1$
+			// if this field is a valid float sent it back if not ignore it (old greenhopper publishes invalid content in this field)
+			try {
+				Float.parseFloat(value);
+				return true;
+			} catch (NumberFormatException e) {
+				return false;
+			}
+		}
+
+		return !key.startsWith("com.atlassian.jira.toolkit") && //$NON-NLS-1$
+				!key.startsWith("com.atlassian.jira.ext.charting"); //$NON-NLS-1$
+	}
+
+	public void progressWorkflowAction(final JiraIssue issue, final String actionKey, final String[] actionFields,
+			IProgressMonitor monitor) throws JiraException {
+		call(monitor, new Callable<Object>() {
+			public Object call() throws Exception {
+				List<RemoteFieldValue> fields = new ArrayList<RemoteFieldValue>();
+
+				addFields(fields, issue, actionFields);
+
+				getSoapService().progressWorkflowAction(loginToken.getCurrentValue(), issue.getKey(), actionKey,
+						fields.toArray(new RemoteFieldValue[fields.size()]));
+				return null;
+			}
+		});
+	}
+
+	private void addFields(List<RemoteFieldValue> fields, JiraIssue issue, String[] actionFields) {
+		for (String field : actionFields) {
+			if ("duedate".equals(field)) { //$NON-NLS-1$
+				if (issue.getDue() != null) {
+					DateFormat format = jiraClient.getLocalConfiguration().getDateFormat();
+					fields.add(new RemoteFieldValue("duedate", new String[] { format.format(issue.getDue()) })); //$NON-NLS-1$
+				} else {
+					fields.add(new RemoteFieldValue("duedate", new String[] { "" })); //$NON-NLS-1$ //$NON-NLS-2$
+				}
+			} else if (field.startsWith("customfield_")) { //$NON-NLS-1$
+				for (CustomField customField : issue.getCustomFields()) {
+					addCustomField(fields, customField);
+				}
+			} else {
+				String[] values = issue.getFieldValues(field);
+				if (values == null) {
+					// method.addParameter(field, "");
+				} else {
+					fields.add(new RemoteFieldValue(field, values));
+				}
+			}
+		}
+	}
+
+	public String createIssue(final JiraIssue issue, IProgressMonitor monitor) throws JiraException {
+		return call(monitor, new Callable<String>() {
+			public String call() throws Exception {
+				RemoteIssue remoteIssue = new RemoteIssue();
+
+				remoteIssue.setProject(issue.getProject().getKey());
+				remoteIssue.setType(issue.getType().getId());
+				remoteIssue.setSummary(issue.getSummary());
+
+				if (issue.getPriority() != null) {
+					remoteIssue.setPriority(issue.getPriority().getId());
+				}
+
+				if (issue.getDue() != null) {
+					Calendar dueDate = Calendar.getInstance();
+					dueDate.setTime(issue.getDue());
+					remoteIssue.setDuedate(dueDate);
+				}
+
+				if (issue.getComponents() != null) {
+					remoteIssue.setComponents(JiraSoapConverter.convert(issue.getComponents()));
+				}
+
+				if (issue.getReportedVersions() != null) {
+					remoteIssue.setAffectsVersions(JiraSoapConverter.convert(issue.getReportedVersions()));
+				}
+
+				if (issue.getFixVersions() != null) {
+					remoteIssue.setFixVersions(JiraSoapConverter.convert(issue.getFixVersions()));
+				}
+
+				if (issue.getAssignee() == null) {
+					remoteIssue.setAssignee("-1"); // Default assignee //$NON-NLS-1$ 
+				} else if (issue.getAssignee().length() == 0) {
+					remoteIssue.setAssignee(""); // nobody //$NON-NLS-1$ 
+				} else {
+					remoteIssue.setAssignee(issue.getAssignee());
+				}
+
+				remoteIssue.setReporter(jiraClient.getUserName());
+
+				remoteIssue.setEnvironment(issue.getEnvironment() != null ? issue.getEnvironment() : ""); //$NON-NLS-1$ 
+				remoteIssue.setDescription(issue.getDescription() != null ? issue.getDescription() : ""); //$NON-NLS-1$ 
+
+				List<RemoteFieldValue> fields = new ArrayList<RemoteFieldValue>();
+				addCustomFields(fields, issue);
+				remoteIssue.setCustomFieldValues(JiraSoapConverter.convert(fields.toArray(new RemoteFieldValue[0])));
+
+				if (issue.getSecurityLevel() != null) {
+					remoteIssue = getSoapService().createIssueWithSecurityLevel(loginToken.getCurrentValue(),
+							remoteIssue, Long.parseLong(issue.getSecurityLevel().getId()));
+				} else {
+					remoteIssue = getSoapService().createIssue(loginToken.getCurrentValue(), remoteIssue);
+				}
+
+				if (remoteIssue != null && issue.getEstimate() != 0) {
+					getSoapService().updateIssue(loginToken.getCurrentValue(), remoteIssue.getKey(),
+							new RemoteFieldValue[] { new RemoteFieldValue("timetracking", //$NON-NLS-1$
+									new String[] { Long.toString(issue.getEstimate() / 60) + "m" }) }); //$NON-NLS-1$
+				}
+
+				return remoteIssue != null ? remoteIssue.getKey() : null;
+			}
+		});
+	}
 }

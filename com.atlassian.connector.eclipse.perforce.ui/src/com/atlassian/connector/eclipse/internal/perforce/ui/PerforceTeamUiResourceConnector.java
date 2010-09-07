@@ -41,6 +41,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.mylyn.commons.core.StatusHandler;
+import org.eclipse.osgi.util.NLS;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayOutputStream;
@@ -82,40 +83,59 @@ public class PerforceTeamUiResourceConnector extends AbstractTeamUiConnector {
 		if (project == null) {
 			return null;
 		}
-		if (isResourceManagedBy(resource) && resource.getType() == IResource.FILE) {
-			try {
-				final IP4Resource scmResource = P4Workspace.getWorkspace().getResource(resource);
-				final IP4File scmFile = (IP4File) (scmResource instanceof IP4File ? scmResource : null);
-				if (scmResource == null) {
-					return null;
-				}
+		if (isResourceManagedBy(resource)) {
+			if (resource.getType() == IResource.FILE) {
+				try {
+					final IP4Resource scmResource = P4Workspace.getWorkspace().getResource(resource);
+					final IP4File scmFile = (IP4File) (scmResource instanceof IP4File ? scmResource : null);
+					if (scmResource == null) {
+						StatusHandler.log(new Status(IStatus.WARNING, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+								"Unable to get SCM resource for {0}", resource.getName())));
+						return null;
+					}
 
-				if (IStateFilter.SF_UNVERSIONED.accept(scmResource)) {
-					return LocalStatus.makeUnversioned();
-				}
+					if (IStateFilter.SF_UNVERSIONED.accept(scmResource)) {
+						StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+								"Resource is unversioned {0}", resource.getName())));
+						return LocalStatus.makeUnversioned();
+					}
 
-				if (IStateFilter.SF_IGNORED.accept(scmResource)) {
-					return LocalStatus.makeIngored();
-				}
+					if (IStateFilter.SF_IGNORED.accept(scmResource)) {
+						StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+								"Resource is ignored {0}", resource.getName())));
+						return LocalStatus.makeIngored();
+					}
 
-				String mimeTypeProp = null;
-				if (scmFile != null) {
-					mimeTypeProp = scmFile.getOpenedType() != null ? scmFile.getOpenedType() : scmFile.getHeadType();
-				}
-				boolean isBinary = (mimeTypeProp != null && !mimeTypeProp.startsWith("text"));
+					String mimeTypeProp = null;
+					if (scmFile != null) {
+						mimeTypeProp = scmFile.getOpenedType() != null ? scmFile.getOpenedType()
+								: scmFile.getHeadType();
+					}
+					boolean isBinary = (mimeTypeProp != null && !mimeTypeProp.startsWith("text"));
 
-				if (IStateFilter.SF_ADDED.accept(scmResource)) {
-					return LocalStatus.makeAdded(getScmPath(scmResource), isBinary);
-				}
+					if (IStateFilter.SF_ADDED.accept(scmResource)) {
+						StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+								"Resource is managed by SCM but hasn't beed commited {0}", resource.getName())));
+						return LocalStatus.makeAdded(getScmPath(scmResource), isBinary);
+					}
 
-				return LocalStatus.makeVersioned(getScmPath(scmResource),
-						scmFile != null ? String.valueOf(scmFile.getHeadChange()) : null,
-						scmFile != null ? String.valueOf(scmFile.getHeadChange()) : null,
-						scmFile != null ? scmFile.isOpened() : false, isBinary);
-			} catch (RuntimeException e) {
-				throw new CoreException(new Status(IStatus.ERROR, AtlassianPerforceUiPlugin.PLUGIN_ID,
-						"Cannot determine local revision for [" + resource.getName() + "]", e));
+					StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+							"Resource is managed by SCM {0}", resource.getName())));
+					return LocalStatus.makeVersioned(getScmPath(scmResource),
+							scmFile != null ? String.valueOf(scmFile.getHeadChange()) : null,
+							scmFile != null ? String.valueOf(scmFile.getHeadChange()) : null,
+							scmFile != null ? scmFile.isOpened() : false, isBinary);
+				} catch (RuntimeException e) {
+					throw new CoreException(new Status(IStatus.ERROR, AtlassianPerforceUiPlugin.PLUGIN_ID,
+							"Cannot determine local revision for [" + resource.getName() + "]", e));
+				}
+			} else {
+				StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+						"Expected resource must be a file {0}", resource.getName())));
 			}
+		} else {
+			StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, NLS.bind(
+					"Resource is not managed by Perforce {0}", resource.getName())));
 		}
 
 		return null;
@@ -170,17 +190,28 @@ public class PerforceTeamUiResourceConnector extends AbstractTeamUiConnector {
 			final IP4File scmResource = (IP4File) P4Workspace.getWorkspace().getResource(resource);
 			final String fileName = getResourcePathWithProjectName(resource);
 
+			StatusHandler.log(new Status(IStatus.INFO, AtlassianPerforceUiPlugin.PLUGIN_ID, String.format(
+					"SF_UNVERSIONED %s; SF_ADDED %s; SF_INGORED %s; SF_DELETED %s; SF_ANY_CHANGE %s",
+					IStateFilter.SF_UNVERSIONED.accept(scmResource), IStateFilter.SF_ADDED.accept(scmResource),
+					IStateFilter.SF_IGNORED.accept(scmResource), IStateFilter.SF_DELETED.accept(scmResource),
+					IStateFilter.SF_ANY_CHANGE.accept(scmResource))));
+
 			// Crucible crashes if newContent is empty so ignore empty files (or mark them)
 			if (IStateFilter.SF_UNVERSIONED.accept(scmResource) || IStateFilter.SF_ADDED.accept(scmResource)
 					|| IStateFilter.SF_IGNORED.accept(scmResource)) {
-				byte[] newContent = getResourceContent((IFile) resource);
-				items.add(new UploadItem(fileName, new byte[0], newContent.length == 0 ? EMPTY_ITEM : newContent));
+				IFile file = (IFile) resource;
+				byte[] newContent = getResourceContent(file);
+				items.add(new UploadItem(fileName, getContentType(null), getCharset(null), new byte[0],
+						getContentType(file), getCharset(file), newContent.length == 0 ? EMPTY_ITEM : newContent));
 			} else if (IStateFilter.SF_DELETED.accept(scmResource)) {
-				items.add(new UploadItem(fileName, getResourceContent(scmResource.getHeadContents()), DELETED_ITEM));
+				items.add(new UploadItem(fileName, getContentType((IFile) resource), getCharset((IFile) resource),
+						getResourceContent(scmResource.getHeadContents()), getContentType(null), getCharset(null),
+						DELETED_ITEM));
 			} else if (IStateFilter.SF_ANY_CHANGE.accept(scmResource)) {
 				byte[] newContent = getResourceContent((IFile) resource);
-				items.add(new UploadItem(fileName, getResourceContent(scmResource.getHeadContents()),
-						newContent.length == 0 ? EMPTY_ITEM : newContent));
+				items.add(new UploadItem(fileName, getContentType((IFile) resource), getCharset((IFile) resource),
+						getResourceContent(scmResource.getHeadContents()), getContentType((IFile) resource),
+						getCharset((IFile) resource), newContent.length == 0 ? EMPTY_ITEM : newContent));
 			}
 		}
 		return items;
