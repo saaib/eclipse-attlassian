@@ -15,6 +15,7 @@ import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepositoryConnector;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
+import com.atlassian.connector.eclipse.internal.crucible.ui.dialogs.AbstractCrucibleReviewActionDialog;
 import com.atlassian.connector.eclipse.internal.crucible.ui.dialogs.CrucibleSummarizeReviewDialog;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 
@@ -22,7 +23,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.mylyn.commons.core.StatusHandler;
-import org.eclipse.mylyn.internal.tasks.ui.util.TasksUiInternal;
+import org.eclipse.mylyn.internal.provisional.commons.ui.WorkbenchUtil;
 import org.eclipse.ui.IWorkbenchWindowActionDelegate;
 
 /**
@@ -50,8 +51,8 @@ public class SummarizeReviewAction extends AbstractReviewAction implements IWork
 			return;
 		}
 
-		CrucibleSummarizeReviewDialog summarizeDialog = new CrucibleSummarizeReviewDialog(TasksUiInternal.getShell(),
-				review, client.getUserName(), getTaskKey(), getTaskId(), getTaskRepository(), client);
+		CrucibleSummarizeReviewDialog summarizeDialog = new CrucibleSummarizeReviewDialog(WorkbenchUtil.getShell(),
+				review, client.getUsername(), getTaskKey(), getTaskId(), getTaskRepository(), client);
 		summarizeDialog.open();
 	}
 

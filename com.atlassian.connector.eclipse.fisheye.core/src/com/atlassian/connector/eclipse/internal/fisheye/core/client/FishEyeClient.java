@@ -11,140 +11,50 @@
 
 package com.atlassian.connector.eclipse.internal.fisheye.core.client;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.fisheye.FishEyeServerFacade2;
+import com.atlassian.connector.eclipse.internal.core.client.AbstractConnectorClient;
+import com.atlassian.connector.eclipse.internal.core.client.HttpSessionCallbackImpl;
 import com.atlassian.connector.eclipse.internal.fisheye.core.FishEyeCorePlugin;
-import com.atlassian.connector.eclipse.internal.fisheye.core.ProductClient;
-import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
-import com.atlassian.theplugin.commons.fisheye.FishEyeServerFacade;
+import com.atlassian.theplugin.commons.fisheye.api.FishEyeSession;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.RemoteApiLoginException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
 import org.eclipse.mylyn.commons.net.AbstractWebLocation;
 import org.eclipse.mylyn.commons.net.AuthenticationCredentials;
 import org.eclipse.mylyn.commons.net.AuthenticationType;
-import org.eclipse.mylyn.commons.net.UnsupportedRequestException;
-import org.eclipse.mylyn.tasks.core.RepositoryStatus;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.util.Collection;
 
 /**
  * Bridge between Mylyn and the ACC API's
  * 
- * @author Shawn Minto (original design)
- * @author Thomas Ehrnhoefer
- * @author Wojciech Seliga (adaptation for FishEye)
+ * @author Wojciech Seliga
  */
-public class FishEyeClient implements ProductClient<FishEyeClientData> {
-
-	public abstract static class FishEyeRemoteOperation<T> extends RemoteOperation<T, FishEyeServerFacade> {
-
-		public FishEyeRemoteOperation(IProgressMonitor monitor, TaskRepository taskRepository) {
-			super(monitor, taskRepository);
-		}
-
-	}
+public class FishEyeClient extends AbstractConnectorClient<FishEyeServerFacade2, FishEyeSession> implements
+		IUpdateRepositoryData, IClientDataProvider {
 
 	private final FishEyeClientData clientData;
 
-	private AbstractWebLocation location;
-
-	private ServerData serverData;
-
-	private final FishEyeServerFacade fishEyeServer;
-
-	public FishEyeClient(AbstractWebLocation location, ServerData serverData, FishEyeServerFacade fishEyeServer,
-			FishEyeClientData data) {
-		this.location = location;
+	public FishEyeClient(AbstractWebLocation location, ConnectionCfg connectionCfg, FishEyeServerFacade2 facade,
+			FishEyeClientData data, HttpSessionCallbackImpl callback) {
+		super(location, connectionCfg, facade, callback);
 		this.clientData = data;
-		this.serverData = serverData;
-		this.fishEyeServer = fishEyeServer;
 	}
 
-	public ServerData getServerData() {
-		return serverData;
-	}
-
-	public void setCrucibleServerCfg(ServerData crucibleServerCfg) {
-		this.serverData = crucibleServerCfg;
-	}
-
-	public <T> T execute(FishEyeRemoteOperation<T> op) throws CoreException {
-		IProgressMonitor monitor = op.getMonitor();
-		TaskRepository taskRepository = op.getTaskRepository();
-		try {
-
-			if (taskRepository.getCredentials(AuthenticationType.REPOSITORY).getPassword().length() < 1) {
-				try {
-					location.requestCredentials(AuthenticationType.REPOSITORY, null, monitor);
-				} catch (UnsupportedRequestException e) {
-					// ignore
-				}
-			}
-
-			monitor.beginTask("Connecting to FishEye", IProgressMonitor.UNKNOWN);
-			updateServer();
-			return op.run(fishEyeServer, serverData, op.getMonitor());
-		} catch (CrucibleLoginException e) {
-			return executeRetry(op, monitor, e);
-		} catch (RemoteApiLoginException e) {
-			if (e.getCause() instanceof IOException) {
-				throw new CoreException(new Status(IStatus.ERROR, FishEyeCorePlugin.PLUGIN_ID, e.getMessage(), e));
-			}
-			return executeRetry(op, monitor, e);
-		} catch (ServerPasswordNotProvidedException e) {
-			return executeRetry(op, monitor, e);
-		} catch (RemoteApiException e) {
-			throw new CoreException(new Status(IStatus.ERROR, FishEyeCorePlugin.PLUGIN_ID, e.getMessage(), e));
-		} finally {
-			monitor.done();
-		}
-	}
-
-	private <T> T executeRetry(FishEyeRemoteOperation<T> op, IProgressMonitor monitor, Exception e)
-			throws CoreException {
-		try {
-			location.requestCredentials(AuthenticationType.REPOSITORY, null, monitor);
-		} catch (UnsupportedRequestException ex) {
-			throw new CoreException(new Status(IStatus.ERROR, FishEyeCorePlugin.PLUGIN_ID,
-					RepositoryStatus.ERROR_REPOSITORY_LOGIN, e.getMessage(), e));
-		}
-		return execute(op);
-	}
-
+	@Override
 	@Nullable
-	public String getUserName() {
+	public String getUsername() {
 		AuthenticationCredentials credentials = location.getCredentials(AuthenticationType.REPOSITORY);
 		if (credentials != null) {
 			return credentials.getUserName();
 		} else {
 			return null;
 		}
-	}
-
-	private void updateServer() {
-		AuthenticationCredentials credentials = location.getCredentials(AuthenticationType.REPOSITORY);
-		if (credentials != null) {
-			serverData = serverData.withCredentials(credentials.getUserName(), credentials.getPassword());
-		}
-	}
-
-	public void validate(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
-		execute(new FishEyeRemoteOperation<Void>(monitor, taskRepository) {
-			@Override
-			public Void run(FishEyeServerFacade server, ServerData aServerData, IProgressMonitor monitor)
-					throws RemoteApiException, ServerPasswordNotProvidedException {
-				server.testServerConnection(aServerData);
-				return null;
-			}
-		});
 	}
 
 	public boolean hasRepositoryData() {
@@ -156,9 +66,10 @@ public class FishEyeClient implements ProductClient<FishEyeClientData> {
 	}
 
 	public void updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
+		FishEyeCorePlugin.getMonitoring().logJob("updateRepositoryData", null); //$NON-NLS-1$
 		execute(new FishEyeRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
-			public Void run(FishEyeServerFacade server, ServerData aServerData, IProgressMonitor monitor)
+			public Void run(FishEyeServerFacade2 server, ConnectionCfg aServerData, IProgressMonitor monitor)
 					throws RemoteApiException, ServerPasswordNotProvidedException {
 
 				monitor.subTask("Retrieving FishEye repositories");
@@ -169,9 +80,10 @@ public class FishEyeClient implements ProductClient<FishEyeClientData> {
 		});
 	}
 
-	// needed so that the ui location can replace the default one
-	public void updateLocation(AbstractWebLocation newLocation) {
-		this.location = newLocation;
+	@Override
+	protected FishEyeSession getSession(ConnectionCfg connectionCfg) throws RemoteApiException,
+			ServerPasswordNotProvidedException {
+		return facade.getSession(connectionCfg);
 	}
 
 }

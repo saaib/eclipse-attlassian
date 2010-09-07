@@ -42,9 +42,11 @@ import java.util.Set;
  */
 public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 
-	private static final String REPOSITORY_LABEL = "Crucible";
+	private static final String REPOSITORY_LABEL = "Crucible (supports 2.0 and later)";
 
 	private static final String IS_FISHEYE_PROP = "isFishEye";
+
+	private static final String TEAM_RESOURCE_CONNECTOR = "preferred_team_resource_connector_name";
 
 	private CrucibleClientManager clientManager;
 
@@ -57,6 +59,14 @@ public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 	public static boolean isFishEye(TaskRepository taskRepository) {
 		final String prop = taskRepository.getProperty(IS_FISHEYE_PROP);
 		return prop != null && Boolean.valueOf(prop);
+	}
+
+	public static String getLastSelectedTeamResourceConnectorName(TaskRepository repository) {
+		return repository.getProperty(TEAM_RESOURCE_CONNECTOR);
+	}
+
+	public static void updateLastSelectedTeamResourceConnectorName(TaskRepository repository, String connectorName) {
+		repository.setProperty(TEAM_RESOURCE_CONNECTOR, connectorName);
 	}
 
 	public CrucibleRepositoryConnector() {
@@ -189,7 +199,7 @@ public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 
 	@Override
 	public void updateTaskFromTaskData(TaskRepository taskRepository, ITask task, TaskData taskData) {
-		TaskMapper scheme = new TaskMapper(taskData);
+		TaskMapper scheme = new CrucibleTaskMapper(taskData);
 		scheme.applyTo(task);
 		task.setCompletionDate(scheme.getCompletionDate());
 
@@ -231,4 +241,41 @@ public class CrucibleRepositoryConnector extends AbstractRepositoryConnector {
 			}
 		};
 	}
+
+	public synchronized void flush() {
+		if (clientManager != null) {
+			clientManager.writeCache();
+		}
+	}
+
+	@Override
+	public boolean hasRepositoryDueDate(TaskRepository taskRepository, ITask task, TaskData taskData) {
+		return task.getDueDate() != null;
+	}
+
+	/*
+	 * PLE-1150
+	 * 
+	@SuppressWarnings("unchecked")
+	@Override
+	public boolean isOwnedByUser(TaskRepository repository, ITask task) {
+		if (super.isOwnedByUser(repository, task)) {
+			return true;
+		}
+
+		String ccStr = task.getAttribute(TaskAttribute.USER_CC);
+		if (!StringUtils.isEmpty(ccStr)) {
+			XStream xs = new XStream(new JDomDriver());
+			List<String> cc = (List<String>) xs.fromXML(ccStr);
+			if (cc != null) {
+				for (String username : cc) {
+					if (username.equals(repository.getUserName())) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}*/
 }

@@ -11,24 +11,22 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.operations;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleRemoteOperation;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomField;
 import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralCommentBean;
 import com.atlassian.theplugin.commons.crucible.api.model.PermId;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-import com.atlassian.theplugin.commons.crucible.api.model.UserBean;
+import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
-import com.atlassian.theplugin.commons.crucible.api.model.VersionedCommentBean;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.text.source.LineRange;
@@ -41,7 +39,7 @@ import java.util.HashMap;
  * 
  * @author Shawn Minto
  */
-public final class AddCommentRemoteOperation extends CrucibleClient.RemoteOperation<Comment> {
+public final class AddCommentRemoteOperation extends CrucibleRemoteOperation<Comment> {
 
 	private HashMap<String, CustomField> customFields = null;
 
@@ -91,71 +89,63 @@ public final class AddCommentRemoteOperation extends CrucibleClient.RemoteOperat
 		this.commentLines = commentLines;
 	}
 
-	private String getTaskId() {
-		if (review == null) {
-			return null;
-		}
-		return CrucibleUtil.getTaskIdFromPermId(review.getPermId().getId());
-	}
-
 	@Override
-	public Comment run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+	public Comment run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 			throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 
-		if (reviewItem != null) {
-			String permId = CrucibleUtil.getPermIdFromTaskId(getTaskId());
+		if (parentComment != null) {
+			// replies are always general comments
+			GeneralComment newComment = createNewGeneralComment(parentComment);
+			newComment.setDefectRaised(isDefect);
+			newComment.setDraft(isDraft);
+			newComment.getCustomFields().putAll(customFields);
+
+			return server.addReply(serverCfg, newComment);
+		} else if (reviewItem != null) {
 			PermId riId = reviewItem.getCrucibleFileInfo().getPermId();
-			VersionedCommentBean newComment = createNewVersionedComment();
+			VersionedComment newComment = createNewVersionedComment(reviewItem.getCrucibleFileInfo());
 			newComment.setDefectRaised(isDefect);
 			newComment.setDraft(isDraft);
 			newComment.getCustomFields().putAll(customFields);
 
 			if (parentComment != null && newComment.isReply()) {
-				return server.addVersionedCommentReply(serverCfg, new PermIdBean(permId), parentComment.getPermId(),
-						newComment);
+				return server.addReply(serverCfg, newComment);
 			} else {
-				return server.addVersionedComment(serverCfg, new PermIdBean(permId), riId, newComment);
+				return server.addVersionedComment(serverCfg, review, riId, newComment);
 			}
 		} else {
-			GeneralCommentBean newComment = createNewGeneralComment();
+			GeneralComment newComment = createNewGeneralComment(null);
 			newComment.setDefectRaised(isDefect);
 			newComment.setDraft(isDraft);
 			newComment.getCustomFields().putAll(customFields);
-			String permId = CrucibleUtil.getPermIdFromTaskId(getTaskId());
-
-			if (parentComment != null && newComment.isReply()) {
-				return server.addGeneralCommentReply(serverCfg, new PermIdBean(permId), parentComment.getPermId(),
-						newComment);
-			} else {
-				return server.addGeneralComment(serverCfg, new PermIdBean(permId), newComment);
-			}
+			return server.addGeneralComment(serverCfg, review, newComment);
 		}
 	}
 
-	private GeneralCommentBean createNewGeneralComment() {
-		GeneralCommentBean newComment = new GeneralCommentBean();
+	private GeneralComment createNewGeneralComment(Comment aParentComment) {
+		GeneralComment newComment = new GeneralComment(review, aParentComment);
 		newComment.setMessage(message);
-		if (parentComment != null && parentComment instanceof GeneralComment) {
+		if (aParentComment != null && aParentComment instanceof Comment) {
 			newComment.setReply(true);
 		} else {
 			newComment.setReply(false);
 		}
-		newComment.setAuthor(new UserBean(client.getUserName()));
+		newComment.setAuthor(new User(client.getUsername()));
 		return newComment;
 	}
 
-	private VersionedCommentBean createNewVersionedComment() {
-		VersionedCommentBean newComment = new VersionedCommentBean();
+	private VersionedComment createNewVersionedComment(CrucibleFileInfo crucibleFileInfo) {
+		VersionedComment newComment = new VersionedComment(review, crucibleFileInfo);
 
 		if (commentLines != null) {
 			if (reviewItem.isOldFile()) {
 				newComment.setFromStartLine(commentLines.getStartLine());
-				newComment.setFromEndLine(commentLines.getStartLine() + commentLines.getNumberOfLines());
+				newComment.setFromEndLine(commentLines.getStartLine() + commentLines.getNumberOfLines() - 1);
 				newComment.setFromLineInfo(true);
 				newComment.setToLineInfo(false);
 			} else {
 				newComment.setToStartLine(commentLines.getStartLine());
-				newComment.setToEndLine(commentLines.getStartLine() + commentLines.getNumberOfLines());
+				newComment.setToEndLine(commentLines.getStartLine() + commentLines.getNumberOfLines() - 1);
 				newComment.setFromLineInfo(false);
 				newComment.setToLineInfo(true);
 			}
@@ -164,7 +154,7 @@ public final class AddCommentRemoteOperation extends CrucibleClient.RemoteOperat
 			newComment.setToLineInfo(false);
 		}
 
-		newComment.setAuthor(new UserBean(client.getUserName()));
+		newComment.setAuthor(new User(client.getUsername()));
 		newComment.setDraft(isDraft);
 		newComment.setMessage(message);
 		if (parentComment != null && parentComment instanceof VersionedComment) {

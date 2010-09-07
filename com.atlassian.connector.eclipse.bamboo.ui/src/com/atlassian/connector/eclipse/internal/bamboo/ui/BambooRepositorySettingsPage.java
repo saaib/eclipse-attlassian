@@ -16,19 +16,26 @@ import com.atlassian.connector.eclipse.internal.bamboo.core.BambooCorePlugin;
 import com.atlassian.connector.eclipse.internal.bamboo.core.BambooUtil;
 import com.atlassian.connector.eclipse.internal.bamboo.core.client.BambooClient;
 import com.atlassian.connector.eclipse.internal.bamboo.core.client.BambooClientData;
-import com.atlassian.connector.eclipse.internal.bamboo.core.client.model.BambooCachedPlan;
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.RemoteApiLockedDialog;
+import com.atlassian.theplugin.commons.bamboo.BambooPlan;
 import com.atlassian.theplugin.commons.cfg.SubscribedPlan;
+import com.atlassian.theplugin.commons.remoteapi.CaptchaRequiredException;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.viewers.CheckboxTreeViewer;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.Viewer;
-import org.eclipse.mylyn.internal.provisional.commons.ui.CommonsUiUtil;
+import org.eclipse.mylyn.commons.net.Policy;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
 import org.eclipse.mylyn.internal.provisional.commons.ui.ICoreRunnable;
+import org.eclipse.mylyn.internal.provisional.commons.ui.WorkbenchUtil;
+import org.eclipse.mylyn.internal.tasks.core.IRepositoryConstants;
 import org.eclipse.mylyn.tasks.core.RepositoryTemplate;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositorySettingsPage;
@@ -40,6 +47,7 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.forms.widgets.ExpandableComposite;
 
 import java.net.MalformedURLException;
@@ -47,7 +55,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -72,10 +79,24 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 			BambooClient client = null;
 			try {
 				client = clientManager.createTempClient(taskRepository, new BambooClientData());
+
+				monitor = Policy.backgroundMonitorFor(monitor);
 				client.validate(monitor, taskRepository);
+			} catch (CoreException e) {
+				if (e.getCause() != null && e.getCause() instanceof CaptchaRequiredException) {
+					Display.getDefault().asyncExec(new Runnable() {
+						public void run() {
+							new RemoteApiLockedDialog(WorkbenchUtil.getShell(), taskRepository.getRepositoryUrl()).open();
+						}
+					});
+					setStatus(new Status(IStatus.ERROR, BambooUiPlugin.PLUGIN_ID,
+							"Wrong credentials or you've been locked out from remote API."));
+				} else {
+					setStatus(e.getStatus());
+				}
 			} finally {
 				if (client != null) {
-					clientManager.deleteTempClient(client.getServerCfg());
+					clientManager.deleteTempClient(client.getServerData());
 				}
 			}
 		}
@@ -115,6 +136,14 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 
 	private boolean initialized;
 
+	private Button btnUseFavourites;
+
+	private Button selectAllButton;
+
+	private Button deselectAllButton;
+
+	private Button refreshButton;
+
 	public BambooRepositorySettingsPage(TaskRepository taskRepository) {
 		super("Bamboo Repository Settings", "Enter Bamboo server information", taskRepository);
 		setNeedsHttpAuth(true);
@@ -126,11 +155,15 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 	@Override
 	public void applyTo(final TaskRepository repository) {
 		this.repository = applyToValidate(repository);
+		repository.setProperty(IRepositoryConstants.PROPERTY_CATEGORY, IRepositoryConstants.CATEGORY_BUILD);
+
+		BambooUtil.setUseFavourites(repository, btnUseFavourites.getSelection());
+
 		Object[] items = planViewer.getCheckedElements();
 		Collection<SubscribedPlan> plans = new ArrayList<SubscribedPlan>(items.length);
 		for (Object item : items) {
-			if (item instanceof BambooCachedPlan) {
-				plans.add(new SubscribedPlan(((BambooCachedPlan) item).getKey()));
+			if (item instanceof BambooPlan) {
+				plans.add(new SubscribedPlan(((BambooPlan) item).getKey()));
 			}
 		}
 		BambooUtil.setSubcribedPlans(this.repository, plans);
@@ -144,6 +177,7 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 	 * in the superclass)
 	 */
 	public TaskRepository applyToValidate(TaskRepository repository) {
+		MigrateToSecureStorageJob.migrateToSecureStorage(repository);
 		super.applyTo(repository);
 		return repository;
 	}
@@ -174,16 +208,24 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 		Composite composite = new Composite(section, SWT.NONE);
 		GridLayout layout = new GridLayout(2, false);
 		layout.marginWidth = 0;
+		layout.verticalSpacing = 10;
 		composite.setLayout(layout);
 		section.setClient(composite);
+
+		btnUseFavourites = new Button(composite, SWT.CHECK);
+		btnUseFavourites.setText("Use Favourite Builds for Server");
+		GridDataFactory.fillDefaults().span(2, 1).indent(0, 5).applyTo(btnUseFavourites);
 
 		planViewer = new CheckboxTreeViewer(composite, SWT.V_SCROLL | SWT.BORDER);
 		planViewer.setContentProvider(new BuildPlanContentProvider());
 		planViewer.setLabelProvider(new BambooLabelProvider());
 		setCachedPlanInput();
 		int height = convertVerticalDLUsToPixels(BUILD_PLAN_VIEWER_HEIGHT);
-		GridDataFactory.fillDefaults().grab(true, true).align(SWT.FILL, SWT.FILL).hint(SWT.DEFAULT, height).applyTo(
-				planViewer.getControl());
+		GridDataFactory.fillDefaults()
+				.grab(true, true)
+				.align(SWT.FILL, SWT.FILL)
+				.hint(SWT.DEFAULT, height)
+				.applyTo(planViewer.getControl());
 
 		Composite buttonComposite = new Composite(composite, SWT.NONE);
 		GridDataFactory.fillDefaults().align(SWT.BEGINNING, SWT.BEGINNING).applyTo(buttonComposite);
@@ -191,38 +233,48 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 		buttonLayout.fill = true;
 		buttonComposite.setLayout(buttonLayout);
 
-		Button selectFavorites = new Button(buttonComposite, SWT.PUSH);
-		selectFavorites.setText("&Favourites");
-		selectFavorites.addSelectionListener(new SelectionAdapter() {
-			@SuppressWarnings("unchecked")
-			@Override
-			public void widgetSelected(SelectionEvent event) {
-				Object input = planViewer.getInput();
-				if (input instanceof Collection<?>) {
-					List<BambooCachedPlan> favorites = new ArrayList<BambooCachedPlan>();
-					for (BambooCachedPlan plan : (Collection<BambooCachedPlan>) input) {
-						if (plan.isFavourite()) {
-							favorites.add(plan);
-						}
-					}
-					planViewer.setCheckedElements(favorites.toArray());
-				}
-			}
-		});
+//		Button selectFavorites = new Button(buttonComposite, SWT.PUSH);
+//		selectFavorites.setText("&Favourites");
+//		selectFavorites.addSelectionListener(new SelectionAdapter() {
+//			@SuppressWarnings("unchecked")
+//			@Override
+//			public void widgetSelected(SelectionEvent event) {
+//				Object input = planViewer.getInput();
+//				// if there are no plans, let's call validate first
+//				if (!(input instanceof Collection<?>)) {
+//					validateSettings();
+//				}
+//				input = planViewer.getInput();
+//				if (input instanceof Collection<?>) {
+//					List<BambooPlan> favorites = new ArrayList<BambooPlan>();
+//					for (BambooPlan plan : (Collection<BambooPlan>) input) {
+//						if (plan.isFavourite()) {
+//							favorites.add(plan);
+//						}
+//					}
+//					planViewer.setCheckedElements(favorites.toArray());
+//				}
+//			}
+//		});
 
-		Button selectAllButton = new Button(buttonComposite, SWT.PUSH);
+		selectAllButton = new Button(buttonComposite, SWT.PUSH);
 		selectAllButton.setText("&Select All");
 		selectAllButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent event) {
 				Object input = planViewer.getInput();
+				// if there are no plans, let's call validate first
+				if (!(input instanceof Collection<?>)) {
+					validateSettings();
+				}
+				input = planViewer.getInput();
 				if (input instanceof Collection<?>) {
 					planViewer.setCheckedElements(((Collection<?>) input).toArray());
 				}
 			}
 		});
 
-		Button deselectAllButton = new Button(buttonComposite, SWT.PUSH);
+		deselectAllButton = new Button(buttonComposite, SWT.PUSH);
 		deselectAllButton.setText("&Deselect All");
 		deselectAllButton.addSelectionListener(new SelectionAdapter() {
 			@Override
@@ -231,7 +283,7 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 			}
 		});
 
-		Button refreshButton = new Button(buttonComposite, SWT.PUSH);
+		refreshButton = new Button(buttonComposite, SWT.PUSH);
 		refreshButton.setText("Refresh");
 		refreshButton.addSelectionListener(new SelectionAdapter() {
 			@Override
@@ -239,6 +291,29 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 				validateSettings();
 			}
 		});
+
+		btnUseFavourites.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				favouritesSelected(btnUseFavourites.getSelection());
+			}
+		});
+
+		restoreOldValues();
+	}
+
+	private void restoreOldValues() {
+		if (BambooUtil.isUseFavourites(repository)) {
+			btnUseFavourites.setSelection(true);
+			favouritesSelected(true);
+		}
+	}
+
+	private void favouritesSelected(boolean enabled) {
+		planViewer.getControl().setEnabled(!enabled);
+		selectAllButton.setEnabled(!enabled);
+		deselectAllButton.setEnabled(!enabled);
+		refreshButton.setEnabled(!enabled);
 	}
 
 	private void setCachedPlanInput() {
@@ -253,10 +328,10 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 //		BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
 //		BambooClient client = clientManager.getClient(repository);
 //		BambooClientData data = client.getClientData();
-//		for (BambooCachedPlan cachedPlan : data.getPlans()) {
+//		for (BambooPlan cachedPlan : data.getPlans()) {
 //			cachedPlan.setSubscribed(false);
 //			for (Object obj : planViewer.getCheckedElements()) {
-//				BambooCachedPlan checkedPlan = (BambooCachedPlan) obj;
+//				BambooPlan checkedPlan = (BambooPlan) obj;
 //				if (checkedPlan.equals(cachedPlan)) {
 //					cachedPlan.setSubscribed(true);
 //				}
@@ -297,7 +372,7 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 	@Override
 	protected void validateSettings() {
 		super.validateSettings();
-		if (validSettings) {
+		if (validSettings && !btnUseFavourites.getSelection()) {
 			refreshBuildPlans();
 		}
 	}
@@ -311,7 +386,7 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 
 			// update configuration
 			final BambooClientData[] data = new BambooClientData[1];
-			CommonsUiUtil.run(getContainer(), new ICoreRunnable() {
+			CommonUiUtil.run(getContainer(), new ICoreRunnable() {
 				public void run(IProgressMonitor monitor) throws CoreException {
 					BambooClientManager clientManager = BambooCorePlugin.getRepositoryConnector().getClientManager();
 					final BambooClient client = clientManager.getClient(repository);
@@ -324,18 +399,18 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 				updateUIRestoreState(checkedElements, data[0]);
 			}
 		} catch (CoreException e) {
-			CommonsUiUtil.setMessage(this, e.getStatus());
+			CommonUiUtil.setMessage(this, e.getStatus());
 		} catch (OperationCanceledException e) {
 			// ignore
 		}
 	}
 
 	private void updateUIRestoreState(Object[] checkedElements, final BambooClientData data) {
-		Collection<BambooCachedPlan> plans = data.getPlans();
+		Collection<BambooPlan> plans = data.getPlans();
 		if (plans != null) {
 			planViewer.setInput(plans);
 			if (!initialized) {
-				// if plans is empty this indicates a loss of configuration, the initialized flag is not set 
+				// if plans are empty this indicates a loss of configuration, the initialized flag is not set 
 				// in this case do nothing to re-trigger initialization after he next refresh  
 				if (plans.size() > 0) {
 					initialized = true;
@@ -343,14 +418,14 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 						// restore selection from repository
 						Set<SubscribedPlan> subscribedPlans = new HashSet<SubscribedPlan>(
 								BambooUtil.getSubscribedPlans(getRepository()));
-						for (BambooCachedPlan plan : plans) {
+						for (BambooPlan plan : plans) {
 							if (subscribedPlans.contains(new SubscribedPlan(plan.getKey()))) {
 								planViewer.setChecked(plan, true);
 							}
 						}
 					} else {
 						// new repository: select favorite plan by default
-						for (BambooCachedPlan plan : plans) {
+						for (BambooPlan plan : plans) {
 							if (plan.isFavourite()) {
 								planViewer.setChecked(plan, true);
 							}
@@ -358,7 +433,7 @@ public class BambooRepositorySettingsPage extends AbstractRepositorySettingsPage
 					}
 				}
 			} else {
-//				for (BambooCachedPlan plan : plans) {
+//				for (BambooPlan plan : plans) {
 //					if (plan.isSubscribed()) {
 //						planViewer.setChecked(plan, true);
 //					}

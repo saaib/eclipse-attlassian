@@ -11,37 +11,40 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.editor;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleConstants;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient.RemoteOperation;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleRemoteOperation;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleRemoteSessionOperation;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.DownloadAvatarsJob;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.model.IReviewCacheListener;
+import com.atlassian.connector.eclipse.internal.crucible.ui.AvatarImages;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleImages;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
+import com.atlassian.connector.eclipse.internal.crucible.ui.AvatarImages.AvatarSize;
+import com.atlassian.connector.eclipse.internal.crucible.ui.actions.CompleteReviewAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.actions.SummarizeReviewAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.AbstractCrucibleEditorFormPart;
-import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleDetailsPart;
-import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleGeneralCommentsPart;
-import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleReviewFilesPart;
-import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.ExpandablePart;
-import com.atlassian.connector.eclipse.ui.forms.IReflowRespectingPart;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
-import com.atlassian.theplugin.commons.crucible.ValueNotYetInitialized;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleObjectivesPart;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleParticipantsPart;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleTitleAndStatePart;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.EmptyReviewFilesPart;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
+import com.atlassian.theplugin.commons.crucible.api.CrucibleSession;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicReview;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.PermId;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
+import com.atlassian.theplugin.commons.crucible.api.model.ReviewType;
 import com.atlassian.theplugin.commons.crucible.api.model.State;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
-import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
 import com.atlassian.theplugin.commons.crucible.api.model.notification.CrucibleNotification;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -59,11 +62,13 @@ import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.mylyn.commons.core.StatusHandler;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonFormUtil;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonImages;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonThemes;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
+import org.eclipse.mylyn.internal.provisional.commons.ui.SelectionProviderAdapter;
 import org.eclipse.mylyn.internal.tasks.ui.TasksUiPlugin;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorUtil;
-import org.eclipse.mylyn.internal.tasks.ui.util.SelectionProviderAdapter;
+import org.eclipse.mylyn.internal.tasks.ui.util.TasksUiInternal;
 import org.eclipse.mylyn.tasks.core.ITask;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.editors.TaskEditor;
@@ -94,13 +99,13 @@ import org.eclipse.ui.forms.events.HyperlinkAdapter;
 import org.eclipse.ui.forms.events.HyperlinkEvent;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.ScrolledForm;
-import org.eclipse.ui.forms.widgets.Section;
 import org.eclipse.ui.themes.IThemeManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The rich editor for crucible reviews
@@ -108,9 +113,83 @@ import java.util.List;
  * @author Shawn Minto
  * @author Thomas Ehrnhoefer
  */
-public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRespectingPart {
+public class CrucibleReviewEditorPage extends TaskFormPage {
+
+	private static final String REVIEW_UPDATE_FAILED = "Review Update Failed";
 
 	private static final String INITIALIZATION_FAILED_MESSAGE = "Unable to retrieve Review. {0} {1}";
+
+	private class ChangeReviewStateAction extends Action {
+
+		private final String title;
+
+		private final String completionMessage;
+
+		private final CrucibleAction crucibleAction;
+
+		ChangeReviewStateAction(String title, CrucibleAction crucibleAction, String completionMessage) {
+			this.title = title;
+			this.crucibleAction = crucibleAction;
+			this.completionMessage = completionMessage;
+		}
+
+		@Override
+		public void run() {
+			CrucibleReviewChangeJob job = new CrucibleReviewChangeJob(title, getTaskRepository()) {
+				@Override
+				protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
+					return executeAsCrucibleReviewChangeJob(client, monitor);
+				}
+			};
+			schedule(job, 0L);
+		}
+
+		protected IStatus executeAsCrucibleReviewChangeJob(CrucibleClient client, IProgressMonitor monitor)
+				throws CoreException {
+			review = client.changeReviewState(review, crucibleAction, getTaskRepository(), monitor);
+			return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, completionMessage);
+		}
+
+	};
+
+	private abstract class ReviewChangeAction extends Action {
+		private final String title;
+
+		private final String resultMessage;
+
+		ReviewChangeAction(String title, String resultMessage) {
+			this.title = title;
+			this.resultMessage = resultMessage;
+		}
+
+		@Override
+		public void run() {
+			CrucibleReviewChangeJob job = new CrucibleReviewChangeJob(title, getTaskRepository()) {
+				@Override
+				protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
+					return executeAsCrucibleReviewChangeJob(client, monitor);
+				}
+			};
+			schedule(job, 0L);
+		}
+
+		protected IStatus executeAsCrucibleReviewChangeJob(CrucibleClient client, IProgressMonitor monitor)
+				throws CoreException {
+			client.execute(new CrucibleRemoteSessionOperation<Review>(monitor, getTaskRepository()) {
+				@Override
+				public Review run(CrucibleSession session, IProgressMonitor monitor) throws RemoteApiException,
+						ServerPasswordNotProvidedException {
+					return runAsCrucibleRemoteOperation(session, monitor);
+				}
+
+			});
+			review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
+			return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, resultMessage);
+		}
+
+		protected abstract Review runAsCrucibleRemoteOperation(CrucibleSession session, IProgressMonitor monitor)
+				throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException;
+	};
 
 	/**
 	 * Causes the form page to reflow on resize.
@@ -168,6 +247,8 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 
 	private static final int VERTICAL_BAR_WIDTH = 15;
 
+	private static final String REVIEW_UPDATE_FAILED_CLICK = "Review update failed. Click to see details.";
+
 	private FormToolkit toolkit;
 
 	private ScrolledForm form;
@@ -181,12 +262,6 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 	private final List<AbstractCrucibleEditorFormPart> parts;
 
 	private ISelectionProvider selectionProviderAdapter;
-
-	private Control highlightedControl;
-
-	private CrucibleFileInfo selectedCrucibleFile;
-
-	private VersionedComment selectedComment;
 
 	private Color selectionColor;
 
@@ -271,7 +346,7 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 
 		selectionColor = new Color(getSite().getShell().getDisplay(), 255, 231, 198);
 
-		EditorUtil.disableScrollingOnFocus(form);
+		CommonFormUtil.disableScrollingOnFocus(form);
 
 		try {
 			setReflow(false);
@@ -324,14 +399,19 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 		if (initiaizingLabel != null && !initiaizingLabel.isDisposed()) {
 			initiaizingLabel.setText("Initializing review editor...");
 		}
+
+		// this is needed to ensure that Image registry is initialized in UI Thread.
+		// later on images may be added to AvatarsCache in non-UI thread
+		CrucibleUiPlugin.getDefault().getAvatarsCache().init();
+
 		CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Retrieving Crucible Review "
 				+ getTask().getTaskKey(), getTaskRepository()) {
 			@Override
 			protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-				//check if repositoryData is initialized
+				// check if repositoryData is initialized
 				if (client.getClientData() == null || client.getClientData().getCachedUsers().size() == 0
 						|| client.getClientData().getCachedProjects().size() == 0) {
-					monitor.subTask("Updateing Repository Data");
+					monitor.subTask("Updating Repository Data");
 					client.updateRepositoryData(monitor, getTaskRepository());
 				}
 				monitor.subTask("Retrieving Crucible Review");
@@ -341,13 +421,24 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 						getTask().getRepositoryUrl(), getTask().getTaskId());
 
 				if (cachedReview == null || force) {
-
 					review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-					return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, null);
 				} else {
 					review = cachedReview;
-					return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, null);
 				}
+				final DownloadAvatarsJob downloadAvatarsJob = new DownloadAvatarsJob(client, getTaskRepository(),
+						review);
+				// executing it synchronously - directly
+				downloadAvatarsJob.downloadAvatarsIfMissing(monitor);
+				final AvatarImages avatarsCache = CrucibleUiPlugin.getDefault().getAvatarsCache();
+				for (Map.Entry<User, byte[]> avatar : downloadAvatarsJob.getAvatars().entrySet()) {
+					synchronized (avatarsCache) {
+						if (avatarsCache.getAvatar(avatar.getKey(), AvatarSize.LARGE) == null) {
+							avatarsCache.addAvatar(avatar.getKey(), avatar.getValue());
+						}
+					}
+				}
+
+				return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, null);
 			}
 		};
 		schedule(job, delay, force);
@@ -370,7 +461,7 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 				for (Control child : editorComposite.getChildren()) {
 					child.setMenu(null);
 					if (child instanceof Composite) {
-						setMenu((Composite) child, null);
+						CommonUiUtil.setMenu((Composite) child, null);
 					}
 				}
 
@@ -380,12 +471,7 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 					part.updateControl(review, editorComposite, toolkit);
 				}
 
-				setMenu(editorComposite, editorComposite.getMenu());
-
-				if (selectedComment != null && selectedCrucibleFile != null) {
-					selectAndReveal(selectedCrucibleFile, selectedComment, false);
-				}
-
+				CommonUiUtil.setMenu(editorComposite, editorComposite.getMenu());
 			} finally {
 				setReflow(true);
 				reflow(true);
@@ -412,12 +498,7 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 				part.createControl(editorComposite, toolkit);
 			}
 
-			setMenu(editorComposite, editorComposite.getMenu());
-
-			if (selectedComment != null && selectedCrucibleFile != null) {
-				selectAndReveal(selectedCrucibleFile, selectedComment, true);
-			}
-
+			CommonUiUtil.setMenu(editorComposite, editorComposite.getMenu());
 		} finally {
 			setReflow(true);
 			reflow(false);
@@ -432,23 +513,14 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 		return null;
 	}
 
-	public void setMenu(Composite composite, Menu menu) {
-		if (!composite.isDisposed()) {
-			composite.setMenu(menu);
-			for (Control child : composite.getChildren()) {
-				child.setMenu(menu);
-				if (child instanceof Composite) {
-					setMenu((Composite) child, menu);
-				}
-			}
-		}
-	}
-
 	private void createFormParts() {
-		focusablePart = new CrucibleDetailsPart();
+		focusablePart = new CrucibleTitleAndStatePart();
 		parts.add(focusablePart);
-		parts.add(new CrucibleGeneralCommentsPart());
-		parts.add(new CrucibleReviewFilesPart());
+		parts.add(new CrucibleParticipantsPart());
+		if (review.getType() == ReviewType.REVIEW) {
+			parts.add(new CrucibleObjectivesPart());
+		}
+		parts.add(new EmptyReviewFilesPart());
 	}
 
 	private void clearFormContent() {
@@ -459,11 +531,9 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 
 		parts.clear();
 
-		highlightedControl = null;
-
 		Menu menu = editorComposite.getMenu();
 		// preserve context menu
-		EditorUtil.setMenu(editorComposite, null);
+		CommonUiUtil.setMenu(editorComposite, null);
 
 		// remove all of the old widgets so that we can redraw the editor
 		for (Control child : editorComposite.getChildren()) {
@@ -516,59 +586,55 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 	@Override
 	protected void fillToolBar(IToolBarManager manager) {
 		if (review != null) {
-			try {
-				EnumSet<CrucibleAction> transitions = review.getTransitions();
-				EnumSet<CrucibleAction> actions = review.getActions();
-				boolean needsSeparator = false;
-				if (actions.contains(CrucibleAction.COMPLETE) && !CrucibleUiUtil.hasCurrentUserCompletedReview(review)) {
-					createCompleteReviewAction(manager);
+			Set<CrucibleAction> transitions = review.getTransitions();
+			Set<CrucibleAction> actions = review.getActions();
+			boolean needsSeparator = false;
+			if (actions.contains(CrucibleAction.COMPLETE) && !CrucibleUiUtil.hasCurrentUserCompletedReview(review)) {
+				createCompleteReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (actions.contains(CrucibleAction.UNCOMPLETE) && CrucibleUiUtil.hasCurrentUserCompletedReview(review)) {
+				createUncompleteReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (canJoinReview()) {
+				if (!CrucibleUiUtil.isCurrentUserReviewer(review)) {
+					createJoinReviewAction(manager);
 					needsSeparator = true;
 				}
-				if (actions.contains(CrucibleAction.UNCOMPLETE) && CrucibleUiUtil.hasCurrentUserCompletedReview(review)) {
-					createUncompleteReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (canJoinReview()) {
-					if (!CrucibleUiUtil.isCurrentUserReviewer(review)) {
-						createJoinReviewAction(manager);
-						needsSeparator = true;
-					}
-				}
-				if (actions.contains(CrucibleAction.APPROVE)
-						&& (review.getState() == State.APPROVAL || review.getState() == State.DRAFT)) {
-					createApproveReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (needsSeparator) {
-					manager.add(new Separator());
-					needsSeparator = false;
-				}
-				if (transitions.contains(CrucibleAction.SUMMARIZE)) {
-					createSummarizeReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (transitions.contains(CrucibleAction.REOPEN)) {
-					createReopenReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (transitions.contains(CrucibleAction.ABANDON)) {
-					createAbandonReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (transitions.contains(CrucibleAction.RECOVER)) {
-					createRecoverReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (transitions.contains(CrucibleAction.SUBMIT)) {
-					createSubmitReviewAction(manager);
-					needsSeparator = true;
-				}
-				if (needsSeparator) {
-					manager.add(new Separator());
-					needsSeparator = false;
-				}
-			} catch (ValueNotYetInitialized e) {
-				StatusHandler.log(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID, "Unexpected error", e));
+			}
+			if (actions.contains(CrucibleAction.APPROVE)
+					&& (review.getState() == State.APPROVAL || review.getState() == State.DRAFT)) {
+				createApproveReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (needsSeparator) {
+				manager.add(new Separator());
+				needsSeparator = false;
+			}
+			if (transitions.contains(CrucibleAction.SUMMARIZE)) {
+				createSummarizeReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (transitions.contains(CrucibleAction.REOPEN)) {
+				createReopenReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (transitions.contains(CrucibleAction.ABANDON)) {
+				createAbandonReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (transitions.contains(CrucibleAction.RECOVER)) {
+				createRecoverReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (transitions.contains(CrucibleAction.SUBMIT)) {
+				createSubmitReviewAction(manager);
+				needsSeparator = true;
+			}
+			if (needsSeparator) {
+				manager.add(new Separator());
+				needsSeparator = false;
 			}
 		}
 
@@ -587,37 +653,17 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 		State state = review.getState();
 		User moderator = review.getModerator();
 		User author = review.getAuthor();
-		String moderatorName = moderator == null ? "" : moderator.getUserName();
-		String authorName = author == null ? "" : author.getUserName();
-		return review.isAllowReviewerToJoin() && !moderatorName.equals(CrucibleUiUtil.getCurrentUserName(review))
-				&& !authorName.equals(CrucibleUiUtil.getCurrentUserName(review))
+		String moderatorName = moderator == null ? "" : moderator.getUsername();
+		String authorName = author == null ? "" : author.getUsername();
+		return review.isAllowReviewerToJoin() && !moderatorName.equals(CrucibleUiUtil.getCurrentUsername(review))
+				&& !authorName.equals(CrucibleUiUtil.getCurrentUsername(review))
 				&& (state == State.APPROVAL || state == State.DRAFT || state == State.REVIEW);
 	}
 
 	private void createSubmitReviewAction(IToolBarManager manager) {
-		Action submitAction = new Action() {
-			@Override
-			public void run() {
-				CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Submit Crucible Review "
-						+ getTask().getTaskKey(), getTaskRepository()) {
-					@Override
-					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						client.execute(new RemoteOperation<Review>(monitor, getTaskRepository()) {
-							@Override
-							public Review run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-								return server.submitReview(serverCfg, new PermIdBean(permId));
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-						return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review was submitted.");
-					}
-				};
-				schedule(job, 0L);
-			}
-		};
+		Action submitAction = new ChangeReviewStateAction(
+				"Submit Crucible Review " + review.getPermId() /* + getTask().getTaskKey() */, CrucibleAction.SUBMIT,
+				"Review has been submitted.");
 		submitAction.setText("Submit");
 		submitAction.setToolTipText("Submit review");
 		submitAction.setImageDescriptor(CrucibleImages.SUBMIT);
@@ -625,28 +671,15 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 	}
 
 	private void createUncompleteReviewAction(IToolBarManager manager) {
-		Action uncompleteAction = new Action() {
+		final String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
+		Action uncompleteAction = new ReviewChangeAction("Uncomplete Crucible Review " + getTask().getTaskKey(),
+				"Review was uncompleted.") {
+
 			@Override
-			public void run() {
-				CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Uncomplete Crucible Review "
-						+ getTask().getTaskKey(), getTaskRepository()) {
-					@Override
-					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						client.execute(new RemoteOperation<Object>(monitor, getTaskRepository()) {
-							@Override
-							public Object run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-								server.completeReview(serverCfg, new PermIdBean(permId), false);
-								return null;
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-						return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review was uncompleted.");
-					}
-				};
-				schedule(job, 0L);
+			protected Review runAsCrucibleRemoteOperation(CrucibleSession session, IProgressMonitor monitor)
+					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
+				session.completeReview(new PermId(permId), false);
+				return null;
 			}
 		};
 		uncompleteAction.setText("Uncomplete");
@@ -656,60 +689,17 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 	}
 
 	private void createCompleteReviewAction(IToolBarManager manager) {
-		Action completeAction = new Action() {
-			@Override
-			public void run() {
-				CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Complete Crucible Review "
-						+ getTask().getTaskKey(), getTaskRepository()) {
-					@Override
-					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						client.execute(new RemoteOperation<Object>(monitor, getTaskRepository()) {
-							@Override
-							public Object run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-								server.completeReview(serverCfg, new PermIdBean(permId), true);
-								return null;
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-						return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review was completed.");
-					}
-				};
-				schedule(job, 0L);
-			}
-		};
+
+		Action completeAction = new CompleteReviewAction(review, "Complete Crucible Review " + getTask().getTaskKey());
 		completeAction.setText("Complete");
-		completeAction.setToolTipText("Complete review");
+		completeAction.setToolTipText("Complete Review");
 		completeAction.setImageDescriptor(CrucibleImages.COMPLETE);
 		manager.add(completeAction);
 	}
 
 	private void createRecoverReviewAction(IToolBarManager manager) {
-		Action recoverAction = new Action() {
-			@Override
-			public void run() {
-				CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Recover Crucible Review "
-						+ getTask().getTaskKey(), getTaskRepository()) {
-					@Override
-					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						client.execute(new RemoteOperation<Review>(monitor, getTaskRepository()) {
-							@Override
-							public Review run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-								return server.recoverReview(serverCfg, new PermIdBean(permId));
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-						return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review was recovered.");
-					}
-				};
-				schedule(job, 0L);
-			}
-		};
+		Action recoverAction = new ChangeReviewStateAction("Recover Crucible Review " + review.getPermId(),
+				CrucibleAction.RECOVER, "Review has been recovered.");
 		recoverAction.setText("Recover");
 		recoverAction.setToolTipText("Recover Review");
 		recoverAction.setImageDescriptor(CrucibleImages.RECOVER);
@@ -724,13 +714,13 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 						+ getTask().getTaskKey(), getTaskRepository()) {
 					@Override
 					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						final String currentUser = CrucibleUiUtil.getCurrentUserName(review);
-						client.execute(new RemoteOperation<Object>(monitor, getTaskRepository()) {
+						final String currentUser = CrucibleUiUtil.getCurrentUsername(review);
+						client.execute(new CrucibleRemoteOperation<Review>(monitor, getTaskRepository()) {
 							@Override
-							public Object run(CrucibleServerFacade server, ServerData serverCfg,
+							public Review run(CrucibleServerFacade2 server, ConnectionCfg serverCfg,
 									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
 									ServerPasswordNotProvidedException {
-								PermId permId = new PermIdBean(CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId()));
+								PermId permId = new PermId(CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId()));
 								server.addReviewers(serverCfg, permId, Collections.singleton(currentUser));
 								return review;
 							}
@@ -760,16 +750,7 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 						+ getTask().getTaskKey(), getTaskRepository()) {
 					@Override
 					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						review = client.execute(new RemoteOperation<Review>(monitor, getTaskRepository()) {
-							@Override
-							public Review run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								PermId permId = new PermIdBean(CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId()));
-								return server.approveReview(serverCfg, permId);
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
+						review = client.changeReviewState(review, CrucibleAction.APPROVE, getTaskRepository(), monitor);
 						if (review.getState() == State.REVIEW) {
 							return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review approved/started.");
 						}
@@ -803,13 +784,15 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 							+ getTask().getTaskKey(), getTaskRepository()) {
 						@Override
 						protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-							client.execute(new RemoteOperation<Review>(monitor, getTaskRepository()) {
+							client.execute(new CrucibleRemoteOperation<Review>(monitor, getTaskRepository()) {
 								@Override
-								public Review run(CrucibleServerFacade server, ServerData serverCfg,
+								public Review run(CrucibleServerFacade2 server, ConnectionCfg serverCfg,
 										IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
 										ServerPasswordNotProvidedException {
 									String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-									return server.abandonReview(serverCfg, new PermIdBean(permId));
+									BasicReview res = server.getSession(serverCfg).changeReviewState(
+											new PermId(permId), CrucibleAction.ABANDON);
+									return server.getReview(serverCfg, res.getPermId());
 								}
 							});
 							review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
@@ -827,29 +810,8 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 	}
 
 	private void createReopenReviewAction(IToolBarManager manager) {
-		Action abandonAction = new Action() {
-			@Override
-			public void run() {
-				CrucibleReviewChangeJob job = new CrucibleReviewChangeJob("Reopen Crucible Review "
-						+ getTask().getTaskKey(), getTaskRepository()) {
-					@Override
-					protected IStatus execute(CrucibleClient client, IProgressMonitor monitor) throws CoreException {
-						client.execute(new RemoteOperation<Review>(monitor, getTaskRepository()) {
-							@Override
-							public Review run(CrucibleServerFacade server, ServerData serverCfg,
-									IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
-									ServerPasswordNotProvidedException {
-								String permId = CrucibleUtil.getPermIdFromTaskId(getTask().getTaskId());
-								return server.reopenReview(serverCfg, new PermIdBean(permId));
-							}
-						});
-						review = client.getReview(getTaskRepository(), getTask().getTaskId(), true, monitor);
-						return new Status(IStatus.OK, CrucibleUiPlugin.PLUGIN_ID, "Review was reopened.");
-					}
-				};
-				schedule(job, 0L);
-			}
-		};
+		Action abandonAction = new ChangeReviewStateAction("Reopen Crucible Review " + getTask().getTaskKey(),
+				CrucibleAction.REOPEN, "Review has been reopened.");
 		abandonAction.setText("Reopen");
 		abandonAction.setImageDescriptor(CrucibleImages.REOPEN);
 		abandonAction.setToolTipText("Reopen review");
@@ -884,72 +846,18 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 		setBusy(true);
 	}
 
-	public void selectAndReveal(CrucibleFileInfo crucibleFile, VersionedComment comment, boolean reveal) {
-		this.selectedCrucibleFile = crucibleFile;
-		this.selectedComment = comment;
-		if (selectedCrucibleFile == null || selectedComment == null) {
-			this.selectedCrucibleFile = null;
-			this.selectedComment = null;
-			setHighlightedPart(null);
-		} else {
-			for (AbstractCrucibleEditorFormPart part : parts) {
-				if (part instanceof CrucibleReviewFilesPart) {
-					((CrucibleReviewFilesPart) part).selectAndReveal(crucibleFile, comment, reveal);
-				}
-			}
-		}
-	}
-
-	public void setHighlightedPart(ExpandablePart part) {
-		if (highlightedControl != null) {
-			setControlHighlighted(highlightedControl, false);
-			highlightedControl = null;
-		}
-
-		if (part != null) {
-			Section highlightedSection = part.getSection();
-			if (highlightedSection != null) {
-				Control client = highlightedSection.getClient();
-				if (client != null) {
-					setControlHighlighted(client, true);
-					highlightedControl = client;
-				}
-			}
-		}
-
-	}
-
-	private void setControlHighlighted(Control client, boolean shouldHighlight) {
-		if (toolkit != null && !client.isDisposed() && selectionColor != null) {
-			if (shouldHighlight) {
-				client.setBackground(selectionColor);
-			} else {
-				client.setBackground(toolkit.getColors().getBackground());
-			}
-			if (client instanceof Composite) {
-				for (Control child : ((Composite) client).getChildren()) {
-					setControlHighlighted(child, shouldHighlight);
-				}
-			}
-		}
-	}
-
-	public boolean canReflow() {
-		return reflow;
-	}
-
 	public Color getColorIncoming() {
 		return colorIncoming;
 	}
 
-	public String getUserName() {
+	public String getUsername() {
 		return getTaskRepository().getUserName();
 	}
 
 	private void reviewUpdateCompleted(final IStatus status, final boolean force) {
 		setBusy(false);
 
-		// TODO setup the image descriptor properly too 
+		// TODO setup the image descriptor properly too
 
 		if (editorComposite != null) {
 			if (status == null || review == null) {
@@ -957,11 +865,12 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 				if (status != null && status.getMessage().contains("HTTP 401")) {
 					message += " (HTTP 401 - Unauthorized)";
 				}
-				message += ". Click to try again.";
+				message += ". Click to see details.";
 				getEditor().setMessage(message, IMessageProvider.WARNING, new HyperlinkAdapter() {
+					@SuppressWarnings("restriction")
 					@Override
 					public void linkActivated(HyperlinkEvent e) {
-						downloadReviewAndRefresh(0, true);
+						TasksUiInternal.displayStatus(REVIEW_UPDATE_FAILED, status);
 					}
 				});
 
@@ -1000,10 +909,11 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 				markTaskAsRead();
 			} else {
 				// TODO improve the message?
-				getEditor().setMessage(status.getMessage(), IMessageProvider.ERROR, new HyperlinkAdapter() {
+				getEditor().setMessage(REVIEW_UPDATE_FAILED_CLICK, IMessageProvider.ERROR, new HyperlinkAdapter() {
+					@SuppressWarnings("restriction")
 					@Override
 					public void linkActivated(HyperlinkEvent e) {
-						downloadReviewAndRefresh(0, true);
+						TasksUiInternal.displayStatus(REVIEW_UPDATE_FAILED, status);
 					}
 				});
 				if (force) {
@@ -1046,14 +956,14 @@ public class CrucibleReviewEditorPage extends TaskFormPage implements IReflowRes
 
 	public void attributesModified() {
 		// TODO as soon as attributes can be submitted via Rest API (ACC-32), continue here
-//		boolean changesFound = false;
-//		for (int i = 0; i < parts.size() && !changesFound; i++) {
-//			changesFound = parts.get(i).hasChangedAttributes();
-//		}
-//		if (changesFound) {
-//			//TODO enable action
-//		} else {
-//			//TODO disable action
-//		}
+		// boolean changesFound = false;
+		// for (int i = 0; i < parts.size() && !changesFound; i++) {
+		// changesFound = parts.get(i).hasChangedAttributes();
+		// }
+		// if (changesFound) {
+		// //TODO enable action
+		// } else {
+		// //TODO disable action
+		// }
 	}
 }

@@ -12,7 +12,7 @@
 package com.atlassian.connector.eclipse.internal.crucible.ui.annotations;
 
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
-
+import org.eclipse.core.commands.Command;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.internal.text.html.HTMLPrinter;
@@ -33,6 +33,7 @@ import org.eclipse.jface.text.source.Annotation;
 import org.eclipse.jface.text.source.CompositeRuler;
 import org.eclipse.jface.text.source.IAnnotationHover;
 import org.eclipse.jface.text.source.IAnnotationHoverExtension;
+import org.eclipse.jface.text.source.IAnnotationHoverExtension2;
 import org.eclipse.jface.text.source.IAnnotationModel;
 import org.eclipse.jface.text.source.ILineRange;
 import org.eclipse.jface.text.source.ISourceViewer;
@@ -42,8 +43,10 @@ import org.eclipse.jface.text.source.LineRange;
 import org.eclipse.jface.text.source.SourceViewer;
 import org.eclipse.jface.text.source.projection.AnnotationBag;
 import org.eclipse.mylyn.commons.core.StatusHandler;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.editors.text.TextSourceViewerConfiguration;
-
+import org.eclipse.ui.texteditor.ITextEditorActionDefinitionIds;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -54,7 +57,7 @@ import java.util.List;
  * 
  * @author Shawn Minto
  */
-public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHoverExtension {
+public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHoverExtension, IAnnotationHoverExtension2 {
 
 	private final IAnnotationHover parentHover;
 
@@ -70,7 +73,7 @@ public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHov
 	}
 
 	public void dispose() {
-		//ignore for now
+		// ignore for now
 	}
 
 	public String getHoverInfo(ISourceViewer sourceViewer, int lineNumber) {
@@ -115,8 +118,11 @@ public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHov
 	}
 
 	public boolean canHandleMouseCursor() {
-		// ignore
-		return false;
+		return true;
+	}
+
+	public boolean canHandleMouseWheel() {
+		return true; // does not work on Ubuntu, but it should be here (maybe works on Windows ;))
 	}
 
 	public Object getHoverInfo(ISourceViewer sourceViewer, ILineRange lineRange, int visibleNumberOfLines) {
@@ -272,7 +278,7 @@ public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHov
 	 * @return <code>true</code> if successful, <code>false</code> otherwise
 	 */
 	public static boolean makeAnnotationHoverFocusable() {
-		//check sourceviewer and hover
+		// check sourceviewer and hover
 		if (currentSourceViewer == null || currentSourceViewer.getTextWidget().isDisposed()
 				|| currentAnnotationHover == null) {
 			return false;
@@ -342,6 +348,12 @@ public class CrucibleAnnotationHover implements IAnnotationHover, IAnnotationHov
 				fInformationPresenter.setMargins(4, 0); // AnnotationBarHoverManager sets (5,0), minus SourceViewer.GAP_SIZE_1
 				fInformationPresenter.setInformationProvider(informationProvider, contentType);
 				fInformationPresenter.showInformation();
+
+				// remove our own handler as F2 focus handler
+				ICommandService commandService = (ICommandService) PlatformUI.getWorkbench().getService(
+						ICommandService.class);
+				Command showInfoCommand = commandService.getCommand(ITextEditorActionDefinitionIds.SHOW_INFORMATION);
+				showInfoCommand.setHandler(null);
 
 				return true;
 			}

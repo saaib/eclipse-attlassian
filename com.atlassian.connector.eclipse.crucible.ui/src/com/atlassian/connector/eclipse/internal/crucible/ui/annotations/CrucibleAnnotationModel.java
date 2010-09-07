@@ -11,11 +11,13 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.annotations;
 
+import com.atlassian.connector.commons.misc.IntRanges;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
+import com.atlassian.theplugin.commons.util.MiscUtil;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -35,6 +37,8 @@ import org.eclipse.ui.texteditor.ITextEditor;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -139,25 +143,43 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 
 	private void createCommentAnnotation(AnnotationModelEvent event, VersionedComment comment) {
 		try {
-			//if fromLineInfo and not toLineInfo and not oldFile -> old line comment but current model is new file
-			if (comment.isFromLineInfo() && !comment.isToLineInfo() && !crucibleFile.isOldFile()) {
-				return;
+
+			int startLine = 0;
+			int endLine = 0;
+
+			final Map<String, IntRanges> lineRanges = comment.getLineRanges();
+			if (lineRanges != null && !lineRanges.isEmpty()) {
+
+				final String displayedRev = crucibleFile.getSelectedFile().getRevision();
+				final IntRanges intRanges = lineRanges.get(displayedRev);
+				if (intRanges != null) {
+					startLine = intRanges.getTotalMin();
+					endLine = intRanges.getTotalMax();
+				} else {
+					return;
+				}
+			} else {
+
+				// if fromLineInfo and not toLineInfo and not oldFile -> old line comment but current model is new file
+				if (comment.isFromLineInfo() && !comment.isToLineInfo() && !crucibleFile.isOldFile()) {
+					return;
+				}
+
+				// if toLineInfo and not fromLineInfo and and oldfile -> new line comment but current model is old file
+				if (comment.isToLineInfo() && !comment.isFromLineInfo() && crucibleFile.isOldFile()) {
+					return;
+				}
+				startLine = comment.getToStartLine();
+				if (crucibleFile.isOldFile()) {
+					startLine = comment.getFromStartLine();
+				}
+
+				endLine = comment.getToEndLine();
+				if (crucibleFile.isOldFile()) {
+					endLine = comment.getFromEndLine();
+				}
 			}
 
-			//if toLineInfo and not fromLineInfo and  and oldfile -> new line comment but current model is old file
-			if (comment.isToLineInfo() && !comment.isFromLineInfo() && crucibleFile.isOldFile()) {
-				return;
-			}
-
-			int startLine = comment.getToStartLine();
-			if (crucibleFile.isOldFile()) {
-				startLine = comment.getFromStartLine();
-			}
-
-			int endLine = comment.getToEndLine();
-			if (crucibleFile.isOldFile()) {
-				endLine = comment.getFromEndLine();
-			}
 			int offset = 0;
 			int length = 0;
 			if (startLine != 0) {
@@ -165,7 +187,7 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 				if (endLine == 0) {
 					endLine = startLine;
 				}
-				length = editorDocument.getLineOffset(endLine) - offset;
+				length = Math.max(editorDocument.getLineOffset(endLine - 1) - offset, 0);
 
 			}
 			CrucibleCommentAnnotation ca = new CrucibleCommentAnnotation(offset, length, comment,
@@ -174,7 +196,7 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 			event.annotationAdded(ca);
 
 		} catch (BadLocationException e) {
-			StatusHandler.log(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID, "Unable to add annoation.", e));
+			StatusHandler.log(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID, "Unable to add annotation.", e));
 		}
 	}
 
@@ -245,7 +267,7 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 	}
 
 	public void updateCrucibleFile(CrucibleFile newCrucibleFile, Review newReview) {
-		// TODO we could just update the annotations appropriately instaed of remove and re-add
+		// TODO we could just update the annotations appropriately instead of remove and re-add
 		this.review = newReview;
 		this.crucibleFile = newCrucibleFile;
 		updateAnnotations(true);
@@ -266,6 +288,20 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Returns the first annotation that this knows about for the given offset in the document
+	 */
+	public List<CrucibleCommentAnnotation> getAnnotationsForOffset(int offset) {
+		List<CrucibleCommentAnnotation> result = MiscUtil.buildArrayList();
+		for (CrucibleCommentAnnotation annotation : this.annotations) {
+			if (annotation.getPosition().offset <= offset
+					&& (annotation.getPosition().length + annotation.getPosition().offset) >= offset) {
+				result.add(annotation);
+			}
+		}
+		return result;
 	}
 
 	public void setEditorDocument(IDocument editorDocument) {
@@ -304,16 +340,20 @@ public class CrucibleAnnotationModel implements IAnnotationModel, ICrucibleAnnot
 			if (other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getAbsoluteUrl() != null) {
 				return false;
 			}
-		} else if (!crucibleFile.getCrucibleFileInfo().getFileDescriptor().getAbsoluteUrl().equals(
-				other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getAbsoluteUrl())) {
+		} else if (!crucibleFile.getCrucibleFileInfo()
+				.getFileDescriptor()
+				.getAbsoluteUrl()
+				.equals(other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getAbsoluteUrl())) {
 			return false;
 		}
 		if (crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision() == null) {
 			if (other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision() != null) {
 				return false;
 			}
-		} else if (!crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision().equals(
-				other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision())) {
+		} else if (!crucibleFile.getCrucibleFileInfo()
+				.getFileDescriptor()
+				.getRevision()
+				.equals(other.crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision())) {
 			return false;
 		}
 		return true;

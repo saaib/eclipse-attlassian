@@ -11,6 +11,7 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.core;
 
+import com.atlassian.connector.eclipse.core.monitoring.Monitoring;
 import com.atlassian.connector.eclipse.internal.core.AtlassianLogger;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.model.ReviewCache;
 import com.atlassian.theplugin.commons.util.LoggerImpl;
@@ -46,6 +47,8 @@ public class CrucibleCorePlugin extends Plugin {
 
 	private ReviewCache reviewCache;
 
+	private static Monitoring monitoring = null;
+
 	/**
 	 * The constructor
 	 */
@@ -75,6 +78,10 @@ public class CrucibleCorePlugin extends Plugin {
 	@Override
 	public void stop(BundleContext context) throws Exception {
 		reviewCache = null;
+
+		if (repositoryConnector != null) {
+			repositoryConnector.flush();
+		}
 
 		plugin = null;
 		super.stop(context);
@@ -110,5 +117,12 @@ public class CrucibleCorePlugin extends Plugin {
 
 	public ReviewCache getReviewCache() {
 		return reviewCache;
+	}
+
+	public static Monitoring getMonitoring() {
+		if (monitoring == null) {
+			monitoring = new Monitoring(PLUGIN_ID);
+		}
+		return monitoring;
 	}
 }

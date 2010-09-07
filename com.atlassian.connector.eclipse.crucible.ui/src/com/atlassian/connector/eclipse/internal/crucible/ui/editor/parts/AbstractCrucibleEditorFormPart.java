@@ -14,17 +14,15 @@ package com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts;
 import com.atlassian.connector.eclipse.internal.crucible.ui.editor.CrucibleReviewEditorPage;
 import com.atlassian.connector.eclipse.ui.editor.AbstractFormPagePart;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.ToolBarManager;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonFormUtil;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonImages;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorUtil;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Section;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,7 +38,7 @@ public abstract class AbstractCrucibleEditorFormPart extends AbstractFormPagePar
 	 * changable attributes in a review
 	 */
 	public enum ReviewAttributeType {
-		TITLE, OBJECTIVE, REVIEWERS, AUTHOR, MODERATOR, FILES;
+		TITLE, OBJECTIVE, REVIEWERS, FILES;
 	}
 
 	/*
@@ -87,7 +85,7 @@ public abstract class AbstractCrucibleEditorFormPart extends AbstractFormPagePar
 				part.setExpanded(true);
 			}
 			if (expandableSection != null && !expandableSection.isExpanded()) {
-				EditorUtil.toggleExpandableComposite(true, expandableSection);
+				CommonFormUtil.setExpanded(expandableSection, true);
 			}
 		} finally {
 			getReviewEditor().setReflow(true);
@@ -117,10 +115,16 @@ public abstract class AbstractCrucibleEditorFormPart extends AbstractFormPagePar
 		toolBarManager.add(expandAllAction);
 	}
 
+	private ToolBarManager toolBarManager;
+
+	protected ToolBarManager getToolBarManager() {
+		return toolBarManager;
+	}
+
 	protected void setSection(FormToolkit toolkit, Section section) {
 		this.expandableSection = section;
 		if (section.getTextClient() == null) {
-			ToolBarManager toolBarManager = new ToolBarManager(SWT.FLAT);
+			toolBarManager = new ToolBarManager(SWT.FLAT);
 			fillToolBar(toolBarManager);
 
 			// TODO toolBarManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));

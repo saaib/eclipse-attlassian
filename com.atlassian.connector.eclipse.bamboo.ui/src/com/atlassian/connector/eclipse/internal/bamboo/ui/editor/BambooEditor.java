@@ -12,6 +12,7 @@
 package com.atlassian.connector.eclipse.internal.bamboo.ui.editor;
 
 import com.atlassian.connector.eclipse.internal.bamboo.core.BambooUtil;
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.BambooImages;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.BambooUiPlugin;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.AddCommentToBuildAction;
@@ -19,7 +20,6 @@ import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.AddLabelToBuil
 import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.NewTaskFromFailedBuildAction;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.actions.RunBuildAction;
 import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
-import com.atlassian.theplugin.commons.bamboo.BambooBuild;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -34,9 +34,9 @@ import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.mylyn.internal.provisional.commons.ui.CommonImages;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorBusyIndicator;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorUtil;
-import org.eclipse.mylyn.internal.tasks.ui.editors.IBusyEditor;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
+import org.eclipse.mylyn.internal.provisional.commons.ui.editor.EditorBusyIndicator;
+import org.eclipse.mylyn.internal.provisional.commons.ui.editor.IBusyEditor;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.TasksUiUtil;
 import org.eclipse.swt.SWT;
@@ -83,7 +83,7 @@ public class BambooEditor extends SharedHeaderFormEditor {
 
 	private BambooEditorInput editorInput;
 
-	private BambooBuild bambooBuild;
+	private EclipseBambooBuild bambooBuild;
 
 	private TaskRepository taskRepository;
 
@@ -140,7 +140,7 @@ public class BambooEditor extends SharedHeaderFormEditor {
 		getHeaderForm().getForm().setMenu(menu);
 		Composite head = getHeaderForm().getForm().getForm().getHead();
 		if (head != null) {
-			EditorUtil.setMenu(head, menu);
+			CommonUiUtil.setMenu(head, menu);
 		}
 	}
 
@@ -197,7 +197,7 @@ public class BambooEditor extends SharedHeaderFormEditor {
 
 	private void updateHeader() {
 		BambooEditorInput input = getEditorInput();
-		switch (bambooBuild.getStatus()) {
+		switch (bambooBuild.getBuild().getStatus()) {
 		case FAILURE:
 			getHeaderForm().getForm().setImage(CommonImages.getImage(BambooImages.STATUS_FAILED));
 			break;
@@ -255,7 +255,7 @@ public class BambooEditor extends SharedHeaderFormEditor {
 			}
 		}
 
-		BaseSelectionListenerAction runBuildAction = new RunBuildAction();
+		BaseSelectionListenerAction runBuildAction = new RunBuildAction(null);
 		runBuildAction.selectionChanged(new StructuredSelection(bambooBuild));
 		toolBarManager.add(runBuildAction);
 
@@ -275,12 +275,12 @@ public class BambooEditor extends SharedHeaderFormEditor {
 
 		toolBarManager.add(new Separator());
 
-		final String buildUrl = bambooBuild.getBuildUrl();
+		final String buildUrl = bambooBuild.getBuild().getBuildUrl();
 		if (buildUrl != null && buildUrl.length() > 0) {
 			Action openWithBrowserAction = new Action() {
 				@Override
 				public void run() {
-					TasksUiUtil.openUrl(BambooUtil.getUrlFromBuild(bambooBuild));
+					TasksUiUtil.openUrl(BambooUtil.getUrlFromBuild(bambooBuild.getBuild()));
 				}
 			};
 			openWithBrowserAction.setImageDescriptor(CommonImages.BROWSER_OPEN_TASK);
@@ -346,7 +346,7 @@ public class BambooEditor extends SharedHeaderFormEditor {
 					}
 				}
 
-				EditorUtil.setEnabledState(form.getBody(), !busy);
+				CommonUiUtil.setEnabled(form.getBody(), !busy);
 				for (IFormPage page : getPages()) {
 					if (page instanceof WorkbenchPart) {
 						WorkbenchPart part = (WorkbenchPart) page;

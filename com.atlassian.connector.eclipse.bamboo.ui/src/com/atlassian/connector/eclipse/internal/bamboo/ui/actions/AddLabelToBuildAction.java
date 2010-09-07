@@ -11,23 +11,19 @@
 
 package com.atlassian.connector.eclipse.internal.bamboo.ui.actions;
 
-import com.atlassian.connector.eclipse.internal.bamboo.core.BambooCorePlugin;
+import com.atlassian.connector.eclipse.internal.bamboo.core.BambooConstants;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.BambooImages;
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.dialogs.AddLabelOrCommentDialog;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.dialogs.AddLabelOrCommentDialog.Type;
-import com.atlassian.theplugin.commons.bamboo.BambooBuild;
-
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.mylyn.tasks.ui.TasksUi;
-import org.eclipse.ui.actions.BaseSelectionListenerAction;
 
 /**
  * Action to add a label to a bamboo build
  * 
  * @author Thomas Ehrnhoefer
+ * @author Wojciech Seliga
  */
-public class AddLabelToBuildAction extends BaseSelectionListenerAction {
+public class AddLabelToBuildAction extends EclipseBambooBuildSelectionListenerAction {
 
 	public AddLabelToBuildAction() {
 		super(null);
@@ -35,39 +31,20 @@ public class AddLabelToBuildAction extends BaseSelectionListenerAction {
 	}
 
 	private void inititalize() {
-		setText("Add Label to Build...");
+		setText(BambooConstants.ADD_LABEL_TO_BUILD_ACTION_LABEL);
 		setToolTipText("Add Label to Build");
 		setImageDescriptor(BambooImages.LABEL);
 	}
 
 	@Override
-	public void run() {
-		ISelection s = super.getStructuredSelection();
-		if (s instanceof IStructuredSelection) {
-			IStructuredSelection selection = (IStructuredSelection) s;
-			Object selected = selection.iterator().next();
-			if (selected instanceof BambooBuild) {
-				final BambooBuild build = (BambooBuild) selected;
-				if (build != null) {
-					AddLabelOrCommentDialog dialog = new AddLabelOrCommentDialog(null, build,
-							TasksUi.getRepositoryManager().getRepository(BambooCorePlugin.CONNECTOR_KIND,
-									build.getServerUrl()), Type.LABEL);
-					dialog.open();
-				}
-			}
-		}
+	void onRun(EclipseBambooBuild eclipseBambooBuild) {
+		AddLabelOrCommentDialog dialog = new AddLabelOrCommentDialog(null, eclipseBambooBuild.getBuild(),
+				eclipseBambooBuild.getTaskRepository(), Type.LABEL);
+		dialog.open();
 	}
 
 	@Override
-	protected boolean updateSelection(IStructuredSelection selection) {
-		if (selection.size() == 1) {
-			try {
-				((BambooBuild) selection.getFirstElement()).getNumber();
-				return true;
-			} catch (UnsupportedOperationException e) {
-				// ignore
-			}
-		}
-		return false;
+	boolean onUpdateSelection(EclipseBambooBuild eclipseBambooBuild) {
+		return true;
 	}
 }

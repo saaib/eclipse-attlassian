@@ -11,15 +11,15 @@
 
 package com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts;
 
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.BambooBuildEditorPage;
 import com.atlassian.connector.eclipse.ui.editor.AbstractFormPagePart;
-import com.atlassian.theplugin.commons.bamboo.BambooBuild;
 import com.atlassian.theplugin.commons.bamboo.BuildDetails;
 
 import org.eclipse.jface.action.ToolBarManager;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorUtil;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Font;
@@ -59,7 +59,7 @@ public abstract class AbstractBambooEditorFormPart extends AbstractFormPagePart 
 
 	protected static final RGB FAILED_BACKGROUND_TITLE = new RGB(214, 61, 61);
 
-	protected BambooBuild bambooBuild;
+	protected EclipseBambooBuild bambooBuild;
 
 	protected TaskRepository repository;
 
@@ -87,7 +87,7 @@ public abstract class AbstractBambooEditorFormPart extends AbstractFormPagePart 
 		this.partName = partName;
 	}
 
-	public void initialize(BambooBuildEditorPage editor, BambooBuild bambooBuild, TaskRepository repository,
+	public void initialize(BambooBuildEditorPage editor, EclipseBambooBuild bambooBuild, TaskRepository repository,
 			String buildLog, BuildDetails buildDetails) {
 		this.bambooBuild = bambooBuild;
 		this.repository = repository;
@@ -117,7 +117,7 @@ public abstract class AbstractBambooEditorFormPart extends AbstractFormPagePart 
 			style |= SWT.BORDER;
 		}
 		Text text = new Text(composite, style);
-		text.setFont(EditorUtil.TEXT_FONT);
+		text.setFont(JFaceResources.getDefaultFont());
 		text.setData(FormToolkit.KEY_DRAW_BORDER, Boolean.FALSE);
 		text.setText(value);
 		toolkit.adapt(text, true, true);

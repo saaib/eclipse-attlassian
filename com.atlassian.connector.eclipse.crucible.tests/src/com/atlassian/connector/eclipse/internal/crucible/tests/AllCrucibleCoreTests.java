@@ -5,13 +5,13 @@ import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepository
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleTaskMapperTest;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtilTest;
 import com.atlassian.connector.eclipse.internal.crucible.core.VersionedCommentDateComparatorTest;
-import com.atlassian.connector.eclipse.internal.crucible.core.configuration.EclipseCrucibleServerCfgTest;
+import com.atlassian.connector.eclipse.internal.crucible.ui.views.ReviewTreeComparatorTest;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
 /**
- * All of the Crucible tests for the Atlassian Eclipse Connector can be run from this class
+ * All of the Crucible tests for the Atlassian Connector for Eclipse can be run from this class
  * 
  * @author Shawn Minto
  */
@@ -32,7 +32,7 @@ public final class AllCrucibleCoreTests {
 		suite.addTestSuite(VersionedCommentDateComparatorTest.class);
 		suite.addTestSuite(CrucibleClientManagerTest.class);
 		suite.addTestSuite(CrucibleTaskMapperTest.class);
-		suite.addTestSuite(EclipseCrucibleServerCfgTest.class);
+		suite.addTestSuite(ReviewTreeComparatorTest.class);
 
 		// $JUnit-END$
 		return suite;

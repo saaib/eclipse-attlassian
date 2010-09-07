@@ -12,13 +12,17 @@
 package com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts;
 
 import org.eclipse.jface.layout.GridDataFactory;
+import org.eclipse.mylyn.tasks.ui.TasksUiUtil;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Link;
 import org.eclipse.ui.forms.widgets.ExpandableComposite;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 
@@ -47,9 +51,10 @@ public class BambooDetailsPart extends AbstractBambooEditorFormPart {
 		Color contentForeground;
 		Color contentBackground;
 		Color titleBackground;
-		String summary = "Build " + bambooBuild.getPlanKey() + "-" + String.valueOf(bambooBuild.getNumber());
+		String summary = "Build " + bambooBuild.getBuild().getPlanKey() + "-"
+				+ String.valueOf(bambooBuild.getBuild().getNumber());
 
-		switch (bambooBuild.getStatus()) {
+		switch (bambooBuild.getBuild().getStatus()) {
 		case FAILURE:
 			foreground = display.getSystemColor(SWT.COLOR_WHITE);
 			contentForeground = display.getSystemColor(SWT.COLOR_BLACK);
@@ -91,20 +96,28 @@ public class BambooDetailsPart extends AbstractBambooEditorFormPart {
 		contentComp.setBackground(contentBackground);
 		GridDataFactory.fillDefaults().grab(true, false).applyTo(contentComp);
 
-		label = createLabelControl(toolkit, contentComp, "Build completed on " + bambooBuild.getCompletionDate());
+		label = createLabelControl(toolkit, contentComp, "Build completed on "
+				+ bambooBuild.getBuild().getCompletionDate());
 		label.setBackground(contentBackground);
 		label.setForeground(contentForeground);
 		GridDataFactory.fillDefaults().grab(true, false).applyTo(label);
 
-		label = createLabelControl(toolkit, contentComp, "Build took " + bambooBuild.getDurationDescription());
+		label = createLabelControl(toolkit, contentComp, "Build took "
+				+ bambooBuild.getBuild().getDurationDescription());
 		label.setBackground(contentBackground);
 		label.setForeground(contentForeground);
 		GridDataFactory.fillDefaults().grab(true, false).applyTo(label);
 
-		label = createLabelControl(toolkit, contentComp, "Build reason: " + bambooBuild.getReason());
-		label.setBackground(contentBackground);
-		label.setForeground(contentForeground);
-		GridDataFactory.fillDefaults().grab(true, false).applyTo(label);
+		Link link = new Link(contentComp, SWT.NONE);
+		link.setText("Build reason: " + bambooBuild.getBuild().getReason());
+		link.setBackground(contentBackground);
+		link.setForeground(contentForeground);
+		link.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				TasksUiUtil.openUrl(e.text);
+			}
+		});
+		GridDataFactory.fillDefaults().grab(true, false).applyTo(link);
 
 		GridDataFactory.fillDefaults().grab(true, false).align(SWT.FILL, SWT.TOP).applyTo(titleComp);
 

@@ -15,70 +15,40 @@
             name="FishEye"
             overlayIcon="icons/obj16/fisheye-overlay.png">
       </connectorUi>
+	   <repositoryMigrator class="com.atlassian.connector.eclipse.internal.fisheye.ui.FishEyeRepositoryMigrator"/>
+      
    </extension>
    
    <!-- I don't know how to achieve the same using new Eclipse command API. Would be great to migrate it 
    without losing any functionality to command API  -->
    <extension
          point="org.eclipse.ui.popupMenus">
+      
+		<!-- copying FishEye link to clipboard -->
       <objectContribution
-            objectClass="org.eclipse.core.resources.IResource"
+            objectClass="com.atlassian.connector.eclipse.ui.commons.IEditorResource"
             adaptable="true"
             id="com.atlassian.connector.eclipse.internal.fisheye.ui.CopyFishEyeLinkObjectContribution">
          <action
                label="Copy FishEye Link to Clipboard"
                tooltip="Copy FishEye Link to Clipboard"
                class="com.atlassian.connector.eclipse.internal.fisheye.ui.action.CopyFishEyeLinkAction"
-               menubarPath="team.main/group10"
-               enablesFor="1"
-               id="com.atlassian.connector.eclipse.internal.fisheye.ui.CopyFishEyeLinkObjectAction">
-         </action>
-      </objectContribution>
-      
-      <!-- I need the second action which overrides the first in order to have line number of the
-      selected code in the editor if possible --> 
-      <objectContribution
-            objectClass="org.eclipse.ui.IEditorInput"
-            adaptable="true"
-            id="com.atlassian.connector.eclipse.internal.fisheye.ui.CopyFishEyeLinkObjectContribution">
-         <action overrideActionId="com.atlassian.connector.eclipse.internal.fisheye.ui.CopyFishEyeLinkObjectAction"
-               label="Copy FishEye Link to Clipboard"
-               tooltip="Copy FishEye Link to Clipboard"
-               class="com.atlassian.connector.eclipse.internal.fisheye.ui.action.CopyFishEyeLinkAction"
-               menubarPath="team.main/group10"
+               menubarPath="team.main/group9"
                enablesFor="1"
                id="com.atlassian.connector.eclipse.internal.fisheye.ui.CopyFishEyeLinkFromEditorObjectAction">
          </action>
       </objectContribution>
 
-		<!-- clone of the above stuff - but for opening in FishEye -->
-
+		<!-- opening in FishEye -->
       <objectContribution
-            objectClass="org.eclipse.core.resources.IResource"
+            objectClass="com.atlassian.connector.eclipse.ui.commons.IEditorResource"
             adaptable="true"
             id="com.atlassian.connector.eclipse.internal.fisheye.ui.OpenInFishEyeObjectContribution">
          <action
                label="Open in FishEye"
                tooltip="Open in FishEye"
                class="com.atlassian.connector.eclipse.internal.fisheye.ui.action.OpenInFishEyeLinkAction"
-               menubarPath="team.main/group10"
-               enablesFor="1"
-               icon="icons/obj16/fisheye-16.png"
-               id="com.atlassian.connector.eclipse.internal.fisheye.ui.OpenInFishEyeObjectAction">
-         </action>
-      </objectContribution>
-      
-      <!-- I need the second action which overrides the first in order to have line number of the
-      selected code in the editor if possible --> 
-      <objectContribution
-            objectClass="org.eclipse.ui.IEditorInput"
-            adaptable="true"
-            id="com.atlassian.connector.eclipse.internal.fisheye.ui.OpenInFishEyeObjectContribution">
-         <action overrideActionId="com.atlassian.connector.eclipse.internal.fisheye.ui.OpenInFishEyeObjectAction"
-               label="Open in FishEye"
-               tooltip="Open in FishEye"
-               class="com.atlassian.connector.eclipse.internal.fisheye.ui.action.OpenInFishEyeLinkAction"
-               menubarPath="team.main/group10"
+               menubarPath="team.main/group9"
                enablesFor="1"
                icon="icons/obj16/fisheye-16.png"
                id="com.atlassian.connector.eclipse.internal.fisheye.ui.OpenInFishEyeFromEditorObjectAction">
@@ -142,22 +112,9 @@
          point="org.eclipse.ui.preferencePages">
       <page
             category="com.atlassian.connector.eclipse.ui.preferences.AtlassianPreferencePage"
-            class="com.atlassian.connector.eclipse.fisheye.ui.preferences.FishEyePreferencePage"
+            class="com.atlassian.connector.eclipse.fisheye.ui.preferences.SourceRepositoryMappingPreferencePage"
             id="com.atlassian.connector.eclipse.fisheye.ui.preferences.FishEyePreferencePage"
-            name="FishEye">
+            name="Repository Mappings">
       </page>
    </extension>
-
-<!-- probably will be needed in the future   
-   <extension
-         point="org.eclipse.core.runtime.adapters">
-      <factory
-            adaptableType="org.eclipse.core.resources.IResource"
-            class="com.atlassian.connector.eclipse.fisheye.ui.AdapterFactory1">
-         <adapter
-               type="com.atlassian.connector.eclipse.fisheye.ui.IFishEyeResource">
-         </adapter>
-      </factory>
-   </extension>
--->
 </plugin>

@@ -2,9 +2,9 @@
 <feature
       id="com.atlassian.connector.eclipse.crucible"
       label="%featureName"
-      version="1.0.0.qualifier"
+      version="2.3.0.qualifier"
       provider-name="%providerName"
-      plugin="com.atlassian.connector.eclipse.ui">
+      plugin="com.atlassian.connector.eclipse.branding.ui">
 
    <description url="http://atlassian.com">
       %description
@@ -18,31 +18,39 @@
       %license
    </license>
 
-   <url>
-      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
-   </url>
+   <includes
+         id="com.atlassian.connector.eclipse"
+         version="0.0.0"/>
 
    <requires>
       <import plugin="org.eclipse.core.runtime"/>
-      <import plugin="org.eclipse.mylyn.tasks.core" version="3.1.0" match="greaterOrEqual"/>
-      <import plugin="org.eclipse.mylyn.commons.core" version="3.1.0" match="greaterOrEqual"/>
-      <import plugin="org.eclipse.mylyn.commons.net" version="3.1.0" match="greaterOrEqual"/>
       <import plugin="org.eclipse.ui"/>
-      <import plugin="org.eclipse.mylyn.tasks.ui" version="3.1.0" match="greaterOrEqual"/>
       <import plugin="org.eclipse.ui.forms"/>
-      <import plugin="org.eclipse.mylyn.commons.ui" version="3.1.0" match="greaterOrEqual"/>
       <import plugin="org.eclipse.jface.text"/>
       <import plugin="org.eclipse.ui.editors"/>
+      <import plugin="org.eclipse.ui.ide"/>
+      <import plugin="org.eclipse.core.resources"/>
       <import plugin="org.eclipse.mylyn.monitor.ui"/>
       <import plugin="org.eclipse.compare"/>
-      <import plugin="org.eclipse.team.core"/>
       <import plugin="org.eclipse.team.ui"/>
-      <import plugin="org.eclipse.core.resources"/>
+      <import plugin="org.eclipse.team.core"/>
       <import plugin="org.eclipse.core.filesystem"/>
-      <import plugin="org.eclipse.ui.ide"/>
-      <import plugin="org.apache.commons.codec"/>
       <import plugin="org.apache.commons.logging"/>
-      <import feature="org.eclipse.mylyn_feature" version="3.1.0.I20090217" match="equivalent"/>
+      <import plugin="org.eclipse.mylyn.wikitext.core" version="1.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.wikitext.tasks.ui" version="1.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.wikitext.confluence.core" version="1.2.0" match="compatible"/>
+      <import feature="org.eclipse.mylyn_feature" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.tasks.core" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.core" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.net" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.tasks.ui" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.ui" version="3.2.0" match="compatible"/>
+      <import plugin="org.eclipse.core.expressions"/>
+      <import plugin="org.eclipse.jface"/>
+      <import plugin="org.eclipse.mylyn.monitor.core"/>
+      <import plugin="org.apache.axis"/>
+      <import plugin="javax.xml.rpc"/>
+      <import plugin="com.atlassian.connector.eclipse.directclickthrough.ui"/>
    </requires>
 
    <plugin
@@ -74,21 +82,7 @@
          unpack="false"/>
 
    <plugin
-         id="com.atlassian.connector.eclipse.core"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
-
-   <plugin
-         id="com.atlassian.connector.eclipse.ui"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
-
-   <plugin
-         id="com.atlassian.connector.commons"
+         id="com.atlassian.connector.eclipse.team.ui"
          download-size="0"
          install-size="0"
          version="0.0.0"
@@ -144,7 +138,7 @@
          unpack="false"/>
 
    <plugin
-         id="com.atlassian.connector.eclipse.help"
+         id="com.atlassian.connector.eclipse.directclickthrough.ui"
          download-size="0"
          install-size="0"
          version="0.0.0"

@@ -12,17 +12,19 @@
 package com.atlassian.connector.eclipse.internal.crucible.ui.actions;
 
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
-import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiUtil;
 import com.atlassian.connector.eclipse.internal.crucible.ui.annotations.ICrucibleCompareSourceViewer;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
-import com.atlassian.connector.eclipse.ui.team.TeamUiUtils;
-import com.atlassian.theplugin.commons.crucible.api.model.Review;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
+import com.atlassian.connector.eclipse.ui.AtlassianUiPlugin;
+import com.atlassian.connector.eclipse.ui.commons.AtlassianUiUtil;
 
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.text.source.LineRange;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 
@@ -38,6 +40,8 @@ public class AddLineCommentToFileAction extends AbstractAddCommentAction {
 	private CrucibleFile crucibleFile = null;
 
 	private ICrucibleCompareSourceViewer crucibleCompareSourceViewer;
+
+	private IEditorInput editorInput;
 
 	public AddLineCommentToFileAction() {
 		super("Create Line Comment...");
@@ -58,29 +62,9 @@ public class AddLineCommentToFileAction extends AbstractAddCommentAction {
 	@Override
 	public void selectionChanged(IAction action, ISelection selection) {
 		super.selectionChanged(action, selection);
-		if (action.isEnabled() && isEnabled()) {
-			IEditorPart editorPart = getActiveEditor();
-			IEditorInput editorInput = getEditorInputFromSelection(selection);
-			if (editorInput != null && editorPart != null) {
-				crucibleFile = TeamUiUtils.getCorrespondingCrucibleFileFromEditorInput(editorInput,
-						CrucibleUiPlugin.getDefault().getActiveReviewManager().getActiveReview());
-				if (crucibleCompareSourceViewer == null) {
-					getJavaEditorSelection(selection);
-				} else {
-					selectedRange = crucibleCompareSourceViewer.getSelection();
-				}
-				if (selectedRange != null && crucibleFile != null && CrucibleUtil.canAddCommentToReview(getReview())
-						&& CrucibleUiUtil.isFilePartOfActiveReview(crucibleFile)) {
-					action.setEnabled(true);
-					setEnabled(true);
-					return;
-				}
-			}
-		}
-		action.setEnabled(false);
-		setEnabled(false);
-		selectedRange = null;
-		crucibleFile = null;
+
+		editorInput = getEditorInputFromSelection(selection);
+
 	}
 
 	@Override
@@ -95,21 +79,20 @@ public class AddLineCommentToFileAction extends AbstractAddCommentAction {
 		return false;
 	}
 
-	private void getJavaEditorSelection(ISelection selection) {
+	private LineRange getJavaEditorSelection(IEditorInput editorInput) {
+		LineRange lines = null;
+
 		IEditorPart editorPart = getActiveEditor();
-		IEditorInput editorInput = getEditorInputFromSelection(selection);
-		if (editorInput != null && editorPart != null) {
-			selectedRange = TeamUiUtils.getSelectedLineNumberRangeFromEditorInput(editorPart, editorInput);
-			if (selectedRange != null) {
-				crucibleFile = TeamUiUtils.getCorrespondingCrucibleFileFromEditorInput(editorInput,
-						CrucibleUiPlugin.getDefault().getActiveReviewManager().getActiveReview());
+
+		if (editorPart != null && editorInput != null) {
+			lines = AtlassianUiUtil.getSelectedLineNumberRangeFromEditorInput(editorPart, editorInput);
+			if (lines == null) {
+				StatusHandler.log(new Status(IStatus.INFO, AtlassianUiPlugin.PLUGIN_ID,
+						"Editor is not an ITextEditor or there's no text selection available."));
 			}
 		}
-	}
 
-	@Override
-	protected Review getReview() {
-		return CrucibleUiPlugin.getDefault().getActiveReviewManager().getActiveReview();
+		return lines;
 	}
 
 	@Override
@@ -128,7 +111,13 @@ public class AddLineCommentToFileAction extends AbstractAddCommentAction {
 		if (crucibleCompareSourceViewer != null) {
 			return crucibleCompareSourceViewer.getSelection();
 		} else {
-			return selectedRange;
+			return getJavaEditorSelection(getEditorInput());
 		}
 	}
+
+	@Override
+	protected IEditorInput getEditorInput() {
+		return editorInput;
+	}
+
 }
