@@ -14,7 +14,6 @@ package com.atlassian.connector.eclipse.internal.crucible.ui;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.swt.graphics.Image;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -28,6 +27,8 @@ public final class CrucibleImages {
 	private static final URL BASE_URL = CrucibleUiPlugin.getDefault().getBundle().getEntry("/icons/"); //$NON-NLS-1$
 
 	private static final String T_OBJ = "obj16"; //$NON-NLS-1$
+
+	private static final String OVR = "ovr"; //$NON-NLS-1$
 
 	public static final ImageDescriptor REVIEWER_COMPLETE = create(T_OBJ, "reviewerComplete.gif"); //$NON-NLS-1$
 
@@ -73,14 +74,29 @@ public final class CrucibleImages {
 
 	public static final ImageDescriptor CHANGESET = create(T_OBJ, "changeset_obj.gif"); //$NON-NLS-1$
 
-	public static final ImageDescriptor REPOSITORY = create(T_OBJ, "repository_rep.gif"); //$NON-NLS-1$
-
 	public static final ImageDescriptor ADD_CHANGESET = create(T_OBJ, "add_changeset.gif"); //$NON-NLS-1$
 
 	public static final ImageDescriptor ADD_PATCH = create(T_OBJ, "add_patch.gif"); //$NON-NLS-1$
 
+	public static final ImageDescriptor DEFAULT_AVATAR = create(T_OBJ, "default_avatar.png"); //$NON-NLS-1$
+
+	public static final ImageDescriptor DEFAULT_AVATAR_LARGE = create(T_OBJ, "default_avatar-large.png"); //$NON-NLS-1$
+
+	public static final ImageDescriptor OVR_DELETED = create(OVR, "deleted.png"); //$NON-NLS-1$
+
+	public static final ImageDescriptor OVR_ADDED = create(OVR, "added.png"); //$NON-NLS-1$
+
+	public static final ImageDescriptor PUBLISH_DRAFT_COMMENTS = create(T_OBJ, "ico_comment_toggle_read.png"); //$NON-NLS-1$
+
+	public static final ImageDescriptor ADD_FILE_COMMENT = create(T_OBJ, "pin_filecomment.png"); //$NON-NLS-1$
+
+	/**
+	 * this icon is borrowed from org.eclipse.ui (access scope is there internal, so I don't want to have compilation warning
+	 * just because of it
+	 */
+	public static final ImageDescriptor OVR_MODIFIED = create(OVR, "dirty_ov.gif"); //$NON-NLS-1$
+
 	private CrucibleImages() {
-		// ignore
 	}
 
 	private static ImageDescriptor create(String prefix, String name) {

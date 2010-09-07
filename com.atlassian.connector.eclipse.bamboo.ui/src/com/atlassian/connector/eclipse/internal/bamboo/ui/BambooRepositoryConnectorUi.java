@@ -30,8 +30,9 @@ import org.eclipse.mylyn.tasks.ui.wizards.ITaskRepositoryPage;
 public class BambooRepositoryConnectorUi extends AbstractRepositoryConnectorUi {
 
 	public BambooRepositoryConnectorUi() {
-		BambooCorePlugin.getRepositoryConnector().getClientManager().setTaskRepositoryLocationFactory(
-				new TaskRepositoryLocationUiFactory());
+		BambooCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.setTaskRepositoryLocationFactory(new TaskRepositoryLocationUiFactory());
 	}
 
 	@Override

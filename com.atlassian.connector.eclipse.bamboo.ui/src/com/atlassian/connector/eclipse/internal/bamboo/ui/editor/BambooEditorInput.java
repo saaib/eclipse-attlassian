@@ -11,13 +11,14 @@
 
 package com.atlassian.connector.eclipse.internal.bamboo.ui.editor;
 
-import com.atlassian.theplugin.commons.bamboo.BambooBuild;
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.jface.resource.ImageDescriptor;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IPersistableElement;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * EditorInput for Bamboo Build
@@ -26,21 +27,19 @@ import org.eclipse.ui.IPersistableElement;
  */
 public class BambooEditorInput implements IEditorInput {
 
-	private final BambooBuild bambooBuild;
-
-	private final TaskRepository repository;
+	@NotNull
+	private final EclipseBambooBuild bambooBuild;
 
 	private static final int MAX_LABEL_LENGTH = 60;
 
-	public BambooEditorInput(TaskRepository repository, BambooBuild bambooBuild) {
-		Assert.isNotNull(repository);
+	public BambooEditorInput(EclipseBambooBuild bambooBuild) {
+		Assert.isNotNull(bambooBuild.getTaskRepository());
 		Assert.isNotNull(bambooBuild);
-		this.repository = repository;
 		this.bambooBuild = bambooBuild;
 	}
 
 	public boolean exists() {
-		return bambooBuild != null;
+		return true;
 	}
 
 	public ImageDescriptor getImageDescriptor() {
@@ -48,16 +47,13 @@ public class BambooEditorInput implements IEditorInput {
 	}
 
 	public String getName() {
-		if (bambooBuild != null) {
-			String number = "";
-			try {
-				number = String.valueOf(bambooBuild.getNumber());
-			} catch (UnsupportedOperationException e) {
-				//ignore
-			}
-			return truncate(bambooBuild.getPlanName() + "-" + number);
+		String number = "";
+		try {
+			number = String.valueOf(bambooBuild.getBuild().getNumber());
+		} catch (UnsupportedOperationException e) {
+			//ignore
 		}
-		return truncate("Bamboo Build");
+		return truncate(bambooBuild.getBuild().getPlanName() + "-" + number);
 	}
 
 	public IPersistableElement getPersistable() {
@@ -65,16 +61,13 @@ public class BambooEditorInput implements IEditorInput {
 	}
 
 	public String getToolTipText() {
-		if (bambooBuild != null) {
-			String number = "";
-			try {
-				number = String.valueOf(bambooBuild.getNumber());
-			} catch (UnsupportedOperationException e) {
-				//ignore
-			}
-			return truncate(bambooBuild.getPlanKey() + "-" + number);
+		String number = "";
+		try {
+			number = String.valueOf(bambooBuild.getBuild().getNumber());
+		} catch (UnsupportedOperationException e) {
+			//ignore
 		}
-		return truncate("Bamboo Build");
+		return truncate(bambooBuild.getBuild().getPlanKey() + "-" + number);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -85,21 +78,22 @@ public class BambooEditorInput implements IEditorInput {
 		return null;
 	}
 
-	public BambooBuild getBambooBuild() {
+	@NotNull
+	public EclipseBambooBuild getBambooBuild() {
 		return bambooBuild;
 	}
 
 	public TaskRepository getRepository() {
-		return repository;
+		return bambooBuild.getTaskRepository();
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + ((repository == null) ? 0 : repository.hashCode());
-		result = prime * result + ((bambooBuild == null) ? 0 : bambooBuild.getPlanKey().hashCode());
-		result = prime * result + ((bambooBuild == null) ? 0 : bambooBuild.getNumber());
+		result = prime * result + getRepository().hashCode();
+		result = prime * result + bambooBuild.getBuild().getPlanKey().hashCode();
+		result = prime * result + bambooBuild.getBuild().getNumber();
 		return result;
 	}
 
@@ -114,10 +108,13 @@ public class BambooEditorInput implements IEditorInput {
 		if (getClass() != obj.getClass()) {
 			return false;
 		}
-		//if same repository, buildplan and build number, input is equals
-		if (this.repository.equals(((BambooEditorInput) obj).getRepository())) {
-			if (this.bambooBuild.getPlanKey().equals(((BambooEditorInput) obj).getBambooBuild().getPlanKey())) {
-				return this.bambooBuild.getNumber() == ((BambooEditorInput) obj).getBambooBuild().getNumber();
+		//if same repository, build plan and build number, input is equals
+		if (getRepository().equals(((BambooEditorInput) obj).getRepository())) {
+			if (this.bambooBuild.getBuild().getPlanKey().equals(
+					((BambooEditorInput) obj).getBambooBuild().getBuild().getPlanKey())) {
+				return this.bambooBuild.getBuild().getNumber() == ((BambooEditorInput) obj).getBambooBuild()
+						.getBuild()
+						.getNumber();
 			}
 		}
 

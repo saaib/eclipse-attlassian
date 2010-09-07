@@ -11,14 +11,13 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.core;
 
-import com.atlassian.theplugin.commons.crucible.ValueNotYetInitialized;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicReview;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomField;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFilter;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFilterBean;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
 import com.atlassian.theplugin.commons.crucible.api.model.PredefinedFilter;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
@@ -229,85 +228,67 @@ public final class CrucibleUtil {
 		}
 	}
 
-	public static String getTaskIdFromReview(Review review) {
+	public static String getTaskIdFromReview(BasicReview review) {
 		String key = review.getPermId().getId();
 		return CrucibleUtil.getTaskIdFromPermId(key);
 	}
 
-	public static boolean isPartialReview(Review review) {
-		try {
-			review.getFiles();
-		} catch (ValueNotYetInitialized e) {
-
-			return true;
-		}
-		return false;
-	}
-
 	public static int createHash(Review review) {
 
-		try {
-			final int prime = 31;
-			int result = 1;
+		final int prime = 31;
+		int result = 1;
 
-			result = prime * result + (review.isAllowReviewerToJoin() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
-			result = prime * result + ((review.getAuthor() == null) ? 0 : review.getAuthor().getUserName().hashCode());
-			result = prime * result + ((review.getCloseDate() == null) ? 0 : review.getCloseDate().hashCode());
-			result = prime * result + ((review.getCreateDate() == null) ? 0 : review.getCreateDate().hashCode());
-			result = prime * result
-					+ ((review.getCreator() == null) ? 0 : review.getCreator().getUserName().hashCode());
-			result = prime * result
-					+ ((review.getCrucibleProject() == null) ? 0 : review.getCrucibleProject().getId().hashCode());
-			result = prime * result + ((review.getDescription() == null) ? 0 : review.getDescription().hashCode());
+		result = prime * result + (review.isAllowReviewerToJoin() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
+		result = prime * result + ((review.getAuthor() == null) ? 0 : review.getAuthor().getUsername().hashCode());
+		result = prime * result + ((review.getCloseDate() == null) ? 0 : review.getCloseDate().hashCode());
+		result = prime * result + ((review.getCreateDate() == null) ? 0 : review.getCreateDate().hashCode());
+		result = prime * result
+				+ ((review.getCreator() == null) ? 0 : review.getCreator().getUsername().hashCode());
+		result = prime * result + ((review.getProjectKey() == null) ? 0 : review.getProjectKey().hashCode());
+		result = prime * result + ((review.getDescription() == null) ? 0 : review.getDescription().hashCode());
 
-			int miniResult = 0;
-			for (CrucibleFileInfo file : review.getFiles()) {
-				miniResult += ((file.getFileDescriptor() == null) ? 0 : file.getFileDescriptor().getUrl().hashCode());
-				for (VersionedComment comment : file.getVersionedComments()) {
-					miniResult = createHashForVersionedComment(miniResult, comment);
-				}
+		int miniResult = 0;
+		for (CrucibleFileInfo file : review.getFiles()) {
+			miniResult += ((file.getFileDescriptor() == null) ? 0 : file.getFileDescriptor().getUrl().hashCode());
+			for (VersionedComment comment : file.getVersionedComments()) {
+				miniResult = createHashForVersionedComment(miniResult, comment);
 			}
-			result = prime * result + miniResult;
-
-			miniResult = 0;
-			for (GeneralComment comment : review.getGeneralComments()) {
-				miniResult = createHashForGeneralComment(miniResult, comment);
-			}
-			result = prime * result + miniResult;
-
-			result = prime * result
-					+ ((review.getModerator() == null) ? 0 : review.getModerator().getUserName().hashCode());
-			result = prime * result + ((review.getName() == null) ? 0 : review.getName().hashCode());
-			result = prime * result
-					+ ((review.getParentReview() == null) ? 0 : review.getParentReview().getId().hashCode());
-			result = prime * result + ((review.getPermId() == null) ? 0 : review.getPermId().getId().hashCode());
-			result = prime * result + ((review.getProjectKey() == null) ? 0 : review.getProjectKey().hashCode());
-			result = prime * result + ((review.getRepoName() == null) ? 0 : review.getRepoName().hashCode());
-
-			miniResult = 0;
-			for (Reviewer reviewer : review.getReviewers()) {
-				miniResult += (reviewer.getUserName().hashCode());
-				miniResult += (reviewer.isCompleted() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
-			}
-			result = prime * result + miniResult;
-
-			result = prime * result + ((review.getState() == null) ? 0 : review.getState().name().hashCode());
-			result = prime * result + ((review.getSummary() == null) ? 0 : review.getSummary().hashCode());
-
-			return result;
-		} catch (ValueNotYetInitialized e) {
-			//ignore
 		}
+		result = prime * result + miniResult;
 
-		return -1;
+		miniResult = 0;
+		for (Comment comment : review.getGeneralComments()) {
+			miniResult = createHashForGeneralComment(miniResult, comment);
+		}
+		result = prime * result + miniResult;
 
+		result = prime * result
+				+ ((review.getModerator() == null) ? 0 : review.getModerator().getUsername().hashCode());
+		result = prime * result + ((review.getName() == null) ? 0 : review.getName().hashCode());
+		result = prime * result
+				+ ((review.getParentReview() == null) ? 0 : review.getParentReview().getId().hashCode());
+		result = prime * result + ((review.getPermId() == null) ? 0 : review.getPermId().getId().hashCode());
+		result = prime * result + ((review.getProjectKey() == null) ? 0 : review.getProjectKey().hashCode());
+		result = prime * result + ((review.getRepoName() == null) ? 0 : review.getRepoName().hashCode());
+
+		miniResult = 0;
+		for (Reviewer reviewer : review.getReviewers()) {
+			miniResult += (reviewer.getUsername().hashCode());
+			miniResult += (reviewer.isCompleted() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
+		}
+		result = prime * result + miniResult;
+
+		result = prime * result + ((review.getState() == null) ? 0 : review.getState().name().hashCode());
+		result = prime * result + ((review.getSummary() == null) ? 0 : review.getSummary().hashCode());
+
+		return result;
 	}
 
-	private static int createHashForGeneralComment(int result, GeneralComment comment) {
+	private static int createHashForGeneralComment(int result, Comment comment) {
 
 		result += (comment.isDraft() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
 		result += ((comment.getMessage() == null) ? 0 : comment.getMessage().hashCode());
-		result += ((comment.getAuthor() == null) ? 0 : comment.getAuthor().getUserName().hashCode());
+		result += ((comment.getAuthor() == null) ? 0 : comment.getAuthor().getUsername().hashCode());
 		result += ((comment.getCreateDate() == null) ? 0 : comment.getCreateDate().hashCode());
 		result += ((comment.getPermId() == null) ? 0 : comment.getPermId().getId().hashCode());
 
@@ -316,7 +297,7 @@ public final class CrucibleUtil {
 			result += ((customValue == null) ? 0 : customValue.getConfigVersion());
 		}
 
-		for (GeneralComment reply : comment.getReplies2()) {
+		for (Comment reply : comment.getReplies()) {
 			result = createHashForGeneralComment(result, reply);
 		}
 
@@ -329,9 +310,10 @@ public final class CrucibleUtil {
 		result += comment.getFromStartLine();
 		result += comment.getToEndLine();
 		result += comment.getToStartLine();
+		result += comment.getLineRanges() != null ? comment.getLineRanges().hashCode() : 0;
 		result += (comment.isDraft() ? TRUE_HASH_MAGIC : FALSE_HASH_MAGIC);
 		result += ((comment.getMessage() == null) ? 0 : comment.getMessage().hashCode());
-		result += ((comment.getAuthor() == null) ? 0 : comment.getAuthor().getUserName().hashCode());
+		result += ((comment.getAuthor() == null) ? 0 : comment.getAuthor().getUsername().hashCode());
 		result += ((comment.getCreateDate() == null) ? 0 : comment.getCreateDate().hashCode());
 		result += ((comment.getPermId() == null) ? 0 : comment.getPermId().getId().hashCode());
 
@@ -340,8 +322,12 @@ public final class CrucibleUtil {
 			result += ((customValue == null) ? 0 : customValue.getConfigVersion());
 		}
 
-		for (VersionedComment reply : comment.getReplies2()) {
-			result = createHashForVersionedComment(result, reply);
+		for (Comment reply : comment.getReplies()) {
+			if (reply instanceof VersionedComment) {
+				result = createHashForVersionedComment(result, (VersionedComment) reply);
+			} else {
+				result = createHashForGeneralComment(result, comment);
+			}
 		}
 
 		return result;
@@ -349,11 +335,7 @@ public final class CrucibleUtil {
 
 	public static boolean canAddCommentToReview(Review review) {
 		if (review != null) {
-			try {
-				return review.getActions().contains(CrucibleAction.COMMENT);
-			} catch (ValueNotYetInitialized e) {
-				StatusHandler.log(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID, e.getMessage(), e));
-			}
+			return review.getActions().contains(CrucibleAction.COMMENT);
 		}
 		return false;
 	}
@@ -364,14 +346,10 @@ public final class CrucibleUtil {
 	}
 
 	public static boolean isUserCompleted(String userName, Review review) {
-		try {
-			for (Reviewer reviewer : review.getReviewers()) {
-				if (reviewer.getUserName().equals(userName)) {
-					return reviewer.isCompleted();
-				}
+		for (Reviewer reviewer : review.getReviewers()) {
+			if (reviewer.getUsername().equals(userName)) {
+				return reviewer.isCompleted();
 			}
-		} catch (ValueNotYetInitialized e) {
-			// ignore
 		}
 		return false;
 	}
@@ -382,28 +360,14 @@ public final class CrucibleUtil {
 			return true;
 		}
 
+		if (!c1.equals(c2)) {
+			return false;
+		}
+
 		if (!areCommentsEqual(c1, c2)) {
 			return false;
 		}
 
-		if (c1.getFromEndLine() != c2.getFromEndLine()) {
-			return false;
-		}
-		if (c1.isFromLineInfo() != c2.isFromLineInfo()) {
-			return false;
-		}
-		if (c1.getFromStartLine() != c2.getFromStartLine()) {
-			return false;
-		}
-		if (c1.getToEndLine() != c2.getToEndLine()) {
-			return false;
-		}
-		if (c1.isToLineInfo() != c2.isToLineInfo()) {
-			return false;
-		}
-		if (c1.getToStartLine() != c2.getToStartLine()) {
-			return false;
-		}
 		if (c1.getReplies() != null ? !c1.getReplies().equals(c2.getReplies()) : c2.getReplies() != null) {
 			return false;
 		}
@@ -412,10 +376,11 @@ public final class CrucibleUtil {
 			return false;
 		}
 
-		for (VersionedComment vc1 : c1.getReplies2()) {
+		for (Comment vc1 : c1.getReplies()) {
 			boolean found = false;
-			for (VersionedComment vc2 : c2.getReplies2()) {
-				if (vc1.getPermId() == vc2.getPermId() && areVersionedCommentsDeepEquals(vc1, vc2)) {
+			for (Comment vc2 : c2.getReplies()) {
+				if (vc1.getPermId() == vc2.getPermId()
+						&& areVersionedCommentsDeepEquals((VersionedComment) vc1, (VersionedComment) vc2)) {
 					found = true;
 					break;
 				}
@@ -465,7 +430,7 @@ public final class CrucibleUtil {
 
 	// TODO add a param for whether it should be a deep comaparison?
 	public static boolean areCrucibleFilesDeepEqual(CrucibleFileInfo file, CrucibleFileInfo file2) {
-		if (file.getPermId() != null ? file.getPermId().getId().equals(file2.getPermId().getId())
+		if (file.getPermId() != null ? !file.getPermId().getId().equals(file2.getPermId().getId())
 				: file2.getPermId() != null) {
 			return false;
 		}
@@ -490,7 +455,7 @@ public final class CrucibleUtil {
 	}
 
 	// TODO add a param for whether it should be a deep comaparison?
-	public static boolean areGeneralCommentsDeepEquals(GeneralComment c1, GeneralComment c2) {
+	public static boolean areGeneralCommentsDeepEquals(Comment c1, Comment c2) {
 		if (c1 == c2) {
 			return true;
 		}
@@ -507,9 +472,9 @@ public final class CrucibleUtil {
 			return false;
 		}
 
-		for (GeneralComment vc1 : c1.getReplies2()) {
+		for (Comment vc1 : c1.getReplies()) {
 			boolean found = false;
-			for (GeneralComment vc2 : c2.getReplies2()) {
+			for (Comment vc2 : c2.getReplies()) {
 				if (vc1.getPermId() == vc2.getPermId() && areGeneralCommentsDeepEquals(vc1, vc2)) {
 					found = true;
 					break;
@@ -521,6 +486,10 @@ public final class CrucibleUtil {
 		}
 
 		return true;
+	}
+
+	public static boolean canPublishDraft(Comment comment) {
+		return (comment.isDraft() && !comment.hasDraftParents());
 	}
 
 }

@@ -12,7 +12,6 @@
 package com.atlassian.connector.eclipse.internal.crucible.ui.annotations;
 
 import com.atlassian.connector.eclipse.internal.crucible.ui.IReviewActionListener;
-import com.atlassian.connector.eclipse.internal.crucible.ui.actions.OpenReviewEditorToCommentAction;
 import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.VersionedCommentPart;
 
 import org.eclipse.jface.action.Action;
@@ -57,10 +56,8 @@ public class CrucibleCommentPopupDialog extends PopupDialog implements IReviewAc
 
 	private static CrucibleCommentPopupDialog currentPopupDialog;
 
-	@SuppressWarnings("deprecation")
 	public CrucibleCommentPopupDialog(Shell parent, int shellStyle) {
-		//TODO e3.4
-		super(parent, shellStyle, false, false, false, false, null, null);
+		super(parent, shellStyle, false, false, false, false, false, null, null);
 	}
 
 	@Override
@@ -178,14 +175,11 @@ public class CrucibleCommentPopupDialog extends PopupDialog implements IReviewAc
 			currentPopupDialog = this;
 			for (CrucibleCommentAnnotation annotation : annotationInput.getCrucibleAnnotations()) {
 				VersionedCommentPart part = new VersionedCommentPart(annotation.getVersionedComment(),
-						annotation.getReview(), annotation.getCrucibleFileInfo(), null);
+						annotation.getReview(), annotation.getCrucibleFileInfo());
 
-				part.addCustomAction(new OpenReviewEditorToCommentAction(annotation.getReview(),
-						annotation.getVersionedComment(), annotation.getCrucibleFileInfo()));
 				part.hookCustomActionRunListener(this);
 
 				toolkit.adapt(part.createControl(composite, toolkit), true, true);
-
 				toolkit.adapt(composite);
 				toolkit.adapt(scrolledComposite);
 				toolkit.adapt(scrolledComposite.getParent());

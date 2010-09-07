@@ -11,19 +11,19 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.operations;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleRemoteOperation;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 
-public final class UpdateCommentRemoteOperation extends CrucibleClient.RemoteOperation<Comment> {
+public final class UpdateCommentRemoteOperation extends CrucibleRemoteOperation<Comment> {
 
 	private final Review review;
 
@@ -37,7 +37,7 @@ public final class UpdateCommentRemoteOperation extends CrucibleClient.RemoteOpe
 	}
 
 	@Override
-	public Comment run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+	public Comment run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 			throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 
 		server.updateComment(serverCfg, review.getPermId(), comment);

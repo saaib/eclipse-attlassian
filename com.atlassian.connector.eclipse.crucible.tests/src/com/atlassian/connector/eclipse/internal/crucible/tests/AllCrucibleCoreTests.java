@@ -5,7 +5,7 @@ import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepository
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleTaskMapperTest;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtilTest;
 import com.atlassian.connector.eclipse.internal.crucible.core.VersionedCommentDateComparatorTest;
-import com.atlassian.connector.eclipse.internal.crucible.core.configuration.EclipseCrucibleServerCfgTest;
+import com.atlassian.connector.eclipse.internal.crucible.ui.views.ReviewTreeComparatorTest;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
@@ -32,7 +32,7 @@ public final class AllCrucibleCoreTests {
 		suite.addTestSuite(VersionedCommentDateComparatorTest.class);
 		suite.addTestSuite(CrucibleClientManagerTest.class);
 		suite.addTestSuite(CrucibleTaskMapperTest.class);
-		suite.addTestSuite(EclipseCrucibleServerCfgTest.class);
+		suite.addTestSuite(ReviewTreeComparatorTest.class);
 
 		// $JUnit-END$
 		return suite;

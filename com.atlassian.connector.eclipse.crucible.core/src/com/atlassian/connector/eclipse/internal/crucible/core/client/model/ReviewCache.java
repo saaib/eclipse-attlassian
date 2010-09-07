@@ -11,21 +11,16 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.core.client.model;
 
-import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
-import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFieldDef;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.notification.CrucibleNotification;
-
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
-import org.eclipse.mylyn.commons.core.StatusHandler;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * Class to manage cached reviews for access by models other than the editor (i.e. annotations)
@@ -44,7 +39,7 @@ public class ReviewCache {
 	private final Map<Integer, List<CustomFieldDef>> metricsMap;
 
 	public ReviewCache() {
-		cachedReviews = new HashMap<String, Map<String, CrucibleCachedReview>>();
+		cachedReviews = new WeakHashMap<String, Map<String, CrucibleCachedReview>>();
 		cacheListeners = new HashSet<IReviewCacheListener>();
 		metricsMap = new HashMap<Integer, List<CustomFieldDef>>();
 	}
@@ -53,11 +48,6 @@ public class ReviewCache {
 	 * @return true if there are changes from the last review
 	 */
 	public synchronized boolean updateCachedReview(String repositoryUrl, String taskId, Review review) {
-		if (CrucibleUtil.isPartialReview(review)) {
-			StatusHandler.log(new Status(IStatus.WARNING, CrucibleCorePlugin.PLUGIN_ID, "Cannot cache partial review",
-					new Exception()));
-			return false;
-		}
 
 		Map<String, CrucibleCachedReview> taskIdToReviewMap = cachedReviews.get(repositoryUrl);
 		if (taskIdToReviewMap == null) {

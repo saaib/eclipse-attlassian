@@ -15,6 +15,7 @@ import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepositoryConnector;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
+import com.atlassian.connector.eclipse.internal.crucible.ui.dialogs.AbstractCrucibleReviewActionDialog;
 import com.atlassian.connector.eclipse.internal.crucible.ui.dialogs.CrucibleSummarizeReviewDialog;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 
@@ -51,7 +52,7 @@ public class SummarizeReviewAction extends AbstractReviewAction implements IWork
 		}
 
 		CrucibleSummarizeReviewDialog summarizeDialog = new CrucibleSummarizeReviewDialog(WorkbenchUtil.getShell(),
-				review, client.getUserName(), getTaskKey(), getTaskId(), getTaskRepository(), client);
+				review, client.getUsername(), getTaskKey(), getTaskId(), getTaskRepository(), client);
 		summarizeDialog.open();
 	}
 

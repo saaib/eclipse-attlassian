@@ -11,6 +11,8 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.wizards;
 
+import com.atlassian.connector.eclipse.internal.commons.ui.MigrateToSecureStorageJob;
+import com.atlassian.connector.eclipse.internal.commons.ui.dialogs.RemoteApiLockedDialog;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleClientManager;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepositoryConnector;
@@ -19,25 +21,24 @@ import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleCli
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClient;
 import com.atlassian.connector.eclipse.internal.fisheye.core.client.FishEyeClientData;
-
+import com.atlassian.theplugin.commons.remoteapi.CaptchaRequiredException;
+import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.dialogs.MessageDialogWithToggle;
 import org.eclipse.mylyn.commons.net.Policy;
+import org.eclipse.mylyn.internal.provisional.commons.ui.WorkbenchUtil;
+import org.eclipse.mylyn.internal.tasks.core.IRepositoryConstants;
 import org.eclipse.mylyn.tasks.core.RepositoryTemplate;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositorySettingsPage;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.forms.widgets.ExpandableComposite;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -47,12 +48,6 @@ import java.net.URL;
  * @author Shawn Minto
  */
 public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPage {
-
-	private Button buttonAlways;
-
-	private Button buttonNever;
-
-	private Button buttonPrompt;
 
 	private Button fishEyeButton;
 
@@ -76,6 +71,25 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 
 				monitor = Policy.backgroundMonitorFor(monitor);
 				client.validate(monitor, taskRepository);
+			} catch (CoreException e) {
+				IStatus status = e.getStatus();
+				if (e.getCause() != null && e.getCause() instanceof RemoteApiException) {
+					if (e.getMessage().contains("HTTP 404")) {
+						status = new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
+								"HTTP 404 (Not Found) - Did you enable Remote API in Crucible?", e);
+					}
+					if (e.getCause() instanceof CaptchaRequiredException) {
+						Display.getDefault().asyncExec(new Runnable() {
+							public void run() {
+								new RemoteApiLockedDialog(WorkbenchUtil.getShell(), taskRepository.getRepositoryUrl()).open();
+							}
+						});
+						status = new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
+								"HTTP 403 (Permission denied) - You've been locked out from remote API.", e);
+					}
+				}
+				setStatus(status);
+				return;
 			} finally {
 				if (client != null) {
 					clientManager.deleteTempClient(client.getServerData());
@@ -91,7 +105,7 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 				isFishEyeDetected = true;
 			} catch (CoreException e) {
 				if (CrucibleRepositoryConnector.isFishEye(taskRepository)) {
-					throw new CoreException(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
+					setStatus(new Status(IStatus.ERROR, CrucibleUiPlugin.PLUGIN_ID,
 							"This server does not seem to be integrated with FishEye.", e));
 				}
 				// if it's not marked as FishEye - that's OK. No exception re-thrown
@@ -100,7 +114,6 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 					clientManager.deleteTempFishEyeClient(fishEyeClient.getServerData());
 				}
 			}
-//			}
 		}
 	}
 
@@ -150,62 +163,27 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 
 	@Override
 	protected void createContributionControls(Composite parentControl) {
-		ExpandableComposite section = createSection(parentControl, "Review Activation");
-		section.setExpanded(true);
-		if (section.getLayoutData() instanceof GridData) {
-			GridData gd = ((GridData) section.getLayoutData());
-			gd.grabExcessVerticalSpace = true;
-			gd.verticalAlignment = SWT.FILL;
-		}
 
-		Composite composite = new Composite(section, SWT.NONE);
-		GridLayout layout = new GridLayout(2, false);
-		layout.marginWidth = 0;
-		composite.setLayout(layout);
-		section.setClient(composite);
-
-		Group group = new Group(composite, SWT.NONE);
-		group.setLayout(new GridLayout(3, true));
-		group.setText("Activate Review when opening a file from within the Review Editor");
-
-		buttonAlways = new Button(group, SWT.RADIO);
-		buttonAlways.setText("Always");
-		buttonNever = new Button(group, SWT.RADIO);
-		buttonNever.setText("Never");
-		buttonPrompt = new Button(group, SWT.RADIO);
-		buttonPrompt.setText("Prompt");
-
-		String pref = CrucibleUiPlugin.getActivateReviewPreference();
-		if (pref.equals(MessageDialogWithToggle.ALWAYS)) {
-			buttonAlways.setSelection(true);
-		} else if (pref.equals(MessageDialogWithToggle.NEVER)) {
-			buttonNever.setSelection(true);
-		} else {
-			buttonPrompt.setSelection(true);
-		}
 		ExpandableComposite fishEyeSection = createSection(parentControl, "FishEye");
 		fishEyeSection.setExpanded(true);
 		fishEyeButton = new Button(fishEyeSection, SWT.CHECK);
 		fishEyeButton.setText("Crucible Server Contains FishEye Instance");
 		fishEyeSection.setClient(fishEyeButton);
 		fishEyeButton.setSelection(repository != null && CrucibleRepositoryConnector.isFishEye(repository));
+
+		// below line adds additional task repository settings section (supported wiki selection)
+		// super.createContributionControls(parentControl);
+
 	}
 
 	@Override
 	public void applyTo(TaskRepository repository) {
+		MigrateToSecureStorageJob.migrateToSecureStorage(repository);
 		super.applyTo(repository);
+		repository.setProperty(IRepositoryConstants.PROPERTY_CATEGORY, IRepositoryConstants.CATEGORY_REVIEW);
 		CrucibleCorePlugin.getRepositoryConnector();
 		CrucibleRepositoryConnector.updateFishEyeStatus(repository, fishEyeButton.getSelection());
 
-		// @todo wseliga I think it does not belong here. Should be in Crucible preference page
-		//store activation preference
-		if (buttonAlways.getSelection()) {
-			CrucibleUiPlugin.setActivateReviewPreference(MessageDialogWithToggle.ALWAYS);
-		} else if (buttonNever.getSelection()) {
-			CrucibleUiPlugin.setActivateReviewPreference(MessageDialogWithToggle.NEVER);
-		} else {
-			CrucibleUiPlugin.setActivateReviewPreference(MessageDialogWithToggle.PROMPT);
-		}
 	}
 
 	@Override
@@ -221,4 +199,5 @@ public class CrucibleRepositorySettingsPage extends AbstractRepositorySettingsPa
 		}
 		super.applyValidatorResult(validator);
 	}
+
 }
