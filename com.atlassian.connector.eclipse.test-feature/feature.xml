@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="com.atlassian.connector.eclipse.test"
+      label="%featureName"
+      version="0.0.0.qualifier"
+      provider-name="%providerName"
+      plugin="com.atlassian.connector.eclipse.branding.ui">
+
+   <description url="http://atlassian.com">
+      %description
+   </description>
+
+   <copyright>
+      %copyright
+   </copyright>
+
+   <license url="license.html">
+      %license
+   </license>
+
+   <url>
+      <update label="%updateSiteName" url="http://update.atlassian.com/atlassian-eclipse-plugin"/>
+   </url>
+
+   <includes
+         id="com.atlassian.connector.eclipse.crucible"
+         version="0.0.0"
+         name="Crucible Integration"/>
+
+   <includes
+         id="com.atlassian.connector.eclipse.bamboo"
+         version="0.0.0"
+         name="Bamboo Integration"/>
+
+   <includes
+         id="com.atlassian.connector.eclipse.jira"
+         version="0.0.0"
+         name="Jira Integration"/>
+
+   <includes
+         id="com.atlassian.connector.commons"
+         version="0.0.0"/>
+
+   <requires>
+      <import plugin="org.junit"/>
+      <import plugin="com.atlassian.connector.eclipse.crucible.core"/>
+      <import plugin="com.atlassian.connector.eclipse.crucible.ui"/>
+      <import plugin="com.atlassian.connector.eclipse.ui"/>
+      <import plugin="com.atlassian.connector.eclipse.core"/>
+      <import plugin="com.atlassian.connector.eclipse.bamboo.core"/>
+      <import plugin="com.atlassian.connector.eclipse.bamboo.ui"/>
+      <import plugin="com.atlassian.connector.eclipse.jira.core"/>
+      <import plugin="com.atlassian.connector.eclipse.jira.ui"/>
+      <import plugin="com.atlassian.connector.eclipse.fisheye.core"/>
+      <import plugin="com.atlassian.connector.eclipse.fisheye.ui"/>
+      <import feature="org.eclipse.mylyn_feature" version="3.2.0.I20090529" match="compatible"/>
+      <import feature="org.eclipse.mylyn.jira_feature" version="3.2.0.I20090529" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.soap" version="3.2.0.I20090529" match="compatible"/>
+   </requires>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.crucible.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.team.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.jetbrains.annotations"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.commons.tests.dependencies"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.bamboo.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.fisheye.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="com.atlassian.connector.eclipse.jira.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.commons.soap"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.commons.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.tests.util"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.java.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.resources.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.ide.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.context.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.ide.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.resources.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.mylyn.pde.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="org.eclipse.mylyn.context.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.mylyn.java.tests"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.mylyn.team.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+</feature>
