@@ -29,6 +29,7 @@ import com.atlassian.connector.eclipse.team.ui.TeamUiResourceManager;
 import com.atlassian.connector.eclipse.team.ui.TeamUiUtils;
 import com.atlassian.connector.eclipse.team.ui.exceptions.UnsupportedTeamProviderException;
 import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicReview;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleVersionInfo;
@@ -42,6 +43,7 @@ import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedExcept
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
 import com.atlassian.theplugin.commons.util.MiscUtil;
 import com.atlassian.theplugin.commons.util.StringUtil;
+
 import org.apache.commons.io.FileUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IResource;
@@ -61,6 +63,7 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.texteditor.ITextEditor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -97,7 +100,7 @@ public final class CrucibleUiUtil {
 	}
 
 	@Nullable
-	public static TaskRepository getCrucibleTaskRepository(Review review) {
+	public static TaskRepository getCrucibleTaskRepository(BasicReview review) {
 		if (review != null) {
 			String repositoryUrl = review.getServerUrl();
 			if (repositoryUrl != null) {
@@ -107,7 +110,7 @@ public final class CrucibleUiUtil {
 		return null;
 	}
 
-	public static CrucibleClient getClient(Review review) {
+	public static CrucibleClient getClient(BasicReview review) {
 		CrucibleRepositoryConnector connector = CrucibleCorePlugin.getRepositoryConnector();
 		return connector.getClientManager().getClient(getCrucibleTaskRepository(review));
 	}
@@ -157,7 +160,8 @@ public final class CrucibleUiUtil {
 		return new Reviewer(user.getUsername(), user.getDisplayName(), completed);
 	}
 
-	public static String getCurrentUsername(TaskRepository repository) {
+	@Nullable
+	public static String getCurrentUsername(@NotNull TaskRepository repository) {
 		/*
 		 * String currentUser = CrucibleCorePlugin.getRepositoryConnector() .getClientManager() .getClient(repository)
 		 * .getUserName();
@@ -165,10 +169,12 @@ public final class CrucibleUiUtil {
 		return repository.getUserName();
 	}
 
-	public static User getCachedUser(String userName, TaskRepository repository) {
-		for (User user : getCachedUsers(repository)) {
-			if (userName.equals(user.getUsername())) {
-				return user;
+	public static User getCachedUser(@Nullable String userName, TaskRepository repository) {
+		if (userName != null) {
+			for (User user : getCachedUsers(repository)) {
+				if (userName.equals(user.getUsername())) {
+					return user;
+				}
 			}
 		}
 		return null;
@@ -200,12 +206,10 @@ public final class CrucibleUiUtil {
 		for (CrucibleFileInfo fileInfo : review.getFiles()) {
 			if (fileInfo != null
 					&& fileInfo.getFileDescriptor() != null
-					&& fileInfo.getFileDescriptor()
-							.getUrl()
-							.equals(crucibleFile.getCrucibleFileInfo().getFileDescriptor().getUrl())
-					&& fileInfo.getFileDescriptor()
-							.getRevision()
-							.equals(crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision())) {
+					&& fileInfo.getFileDescriptor().getUrl().equals(
+							crucibleFile.getCrucibleFileInfo().getFileDescriptor().getUrl())
+					&& fileInfo.getFileDescriptor().getRevision().equals(
+							crucibleFile.getCrucibleFileInfo().getFileDescriptor().getRevision())) {
 				return true;
 			}
 		}
@@ -269,7 +273,8 @@ public final class CrucibleUiUtil {
 	@Nullable
 	public static BasicProject getCachedProject(TaskRepository repository, String projectKey) {
 		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
-				.getClientManager().getCrucibleClientData(repository);
+				.getClientManager()
+				.getCrucibleClientData(repository);
 
 		if (clientData == null) {
 			return null;

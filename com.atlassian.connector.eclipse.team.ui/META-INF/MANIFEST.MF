@@ -15,6 +15,7 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.ui.ide,
  org.eclipse.ui.forms,
  com.atlassian.connector.commons,
+ com.atlassian.connector.eclipse.branding.ui,
  org.eclipse.ui.editors,
  org.eclipse.jface.text,
  org.eclipse.jface,
@@ -28,7 +29,8 @@ Require-Bundle: org.eclipse.ui,
  org.jetbrains.annotations;resolution:=optional,
  com.atlassian.connector.eclipse.core,
  com.atlassian.connector.eclipse.ui,
- org.apache.commons.io
+ org.apache.commons.io,
+ com.atlassian.connector.eclipse.commons.core
 Bundle-ActivationPolicy: lazy
 Bundle-RequiredExecutionEnvironment: J2SE-1.5
 Export-Package: 

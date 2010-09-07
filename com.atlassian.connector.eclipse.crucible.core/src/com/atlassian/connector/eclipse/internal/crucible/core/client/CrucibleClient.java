@@ -34,9 +34,11 @@ import com.atlassian.theplugin.commons.crucible.api.model.PermId;
 import com.atlassian.theplugin.commons.crucible.api.model.PredefinedFilter;
 import com.atlassian.theplugin.commons.crucible.api.model.Repository;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
+import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
+import com.atlassian.theplugin.commons.util.MiscUtil;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -83,7 +85,7 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 
 	public TaskData getTaskData(TaskRepository taskRepository, final String taskId, IProgressMonitor monitor)
 			throws CoreException {
-
+		CrucibleCorePlugin.getMonitoring().logJob("getTaskData", null); //$NON-NLS-1$
 		return execute(new CrucibleRemoteOperation<TaskData>(monitor, taskRepository) {
 			@Override
 			public TaskData run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -116,6 +118,7 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 
 	public void performQuery(TaskRepository taskRepository, final IRepositoryQuery query,
 			final TaskDataCollector resultCollector, IProgressMonitor monitor) throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("performQuery", null); //$NON-NLS-1$
 		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
 			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -196,6 +199,18 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 		mapper.setOwner(owner);
 		mapper.setCompletionDate(closeDate);
 		mapper.setTaskUrl(CrucibleUtil.getReviewUrl(taskRepository.getUrl(), id));
+
+		List<String> cc = MiscUtil.buildArrayList();
+		if (review.getModerator() != null) {
+			cc.add(review.getModerator().getUsername());
+		}
+		if (review.getReviewers() != null) {
+			for (Reviewer reviewer : review.getReviewers()) {
+				cc.add(reviewer.getUsername());
+			}
+		}
+		mapper.setCc(cc);
+
 		final DateTime dueDate = review.getDueDate();
 		if (dueDate != null) {
 			mapper.setDueDate(dueDate.toDate());
@@ -204,22 +219,14 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 		TaskAttribute hasChangedAttribute = taskData.getRoot().createAttribute(
 				CrucibleConstants.HAS_CHANGED_TASKDATA_KEY);
 		hasChangedAttribute.setValue(Boolean.toString(hasChanged));
-		hasChangedAttribute.getMetaData()
-				.defaults()
-				.setReadOnly(true)
-				.setKind(TaskAttribute.KIND_DEFAULT)
-				.setLabel("Has Changed")
-				.setType(TaskAttribute.TYPE_BOOLEAN);
+		hasChangedAttribute.getMetaData().defaults().setReadOnly(true).setKind(TaskAttribute.KIND_DEFAULT).setLabel(
+				"Has Changed").setType(TaskAttribute.TYPE_BOOLEAN);
 
 		if (hash != -1) {
 			TaskAttribute hashAttribute = taskData.getRoot().createAttribute(CrucibleConstants.CHANGED_HASH_CODE_KEY);
 			hashAttribute.setValue(Integer.toString(hash));
-			hashAttribute.getMetaData()
-					.defaults()
-					.setReadOnly(true)
-					.setKind(TaskAttribute.KIND_DEFAULT)
-					.setLabel("Hash")
-					.setType(TaskAttribute.TYPE_INTEGER);
+			hashAttribute.getMetaData().defaults().setReadOnly(true).setKind(TaskAttribute.KIND_DEFAULT).setLabel(
+					"Hash").setType(TaskAttribute.TYPE_INTEGER);
 
 		}
 		return taskData;
@@ -235,6 +242,7 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 
 	public CrucibleVersionInfo updateVersionInfo(IProgressMonitor monitor, TaskRepository taskRepository)
 			throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateVersionInfo", null); //$NON-NLS-1$
 		return execute(new CrucibleRemoteSessionOperation<CrucibleVersionInfo>(monitor, taskRepository) {
 
 			@Override
@@ -270,6 +278,7 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 	}
 
 	public void updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateRepositoryData", null); //$NON-NLS-1$
 		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
 			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
@@ -282,13 +291,14 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 
 	public void updateProjectDetails(IProgressMonitor monitor, TaskRepository taskRepository, final String projectKey)
 			throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateProjectDetails", null); //$NON-NLS-1$
 		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
 			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 
-				SubMonitor submonitor = SubMonitor.convert(monitor,
-						NLS.bind("Updating project details for {0}", projectKey), 2);
+				SubMonitor submonitor = SubMonitor.convert(monitor, NLS.bind("Updating project details for {0}",
+						projectKey), 2);
 
 				if (clientData == null || clientData.getCachedProjects() == null) {
 					initializeCache(server, serverCfg, submonitor.newChild(1));
@@ -320,6 +330,7 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 
 	public Review changeReviewState(final BasicReview review, final CrucibleAction action, TaskRepository repository,
 			IProgressMonitor progressMonitor) throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("changeReviewState", null); //$NON-NLS-1$
 		BasicReview basicReview = execute(new CrucibleRemoteSessionOperation<BasicReview>(progressMonitor, repository) {
 			@Override
 			public BasicReview run(CrucibleSession session, IProgressMonitor monitor) throws RemoteApiException,
@@ -330,4 +341,5 @@ public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade
 		String taskId = CrucibleUtil.getTaskIdFromReview(basicReview);
 		return getReview(repository, taskId, true, progressMonitor);
 	}
+
 }

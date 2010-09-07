@@ -33,7 +33,6 @@ import org.apache.commons.httpclient.methods.PostMethod;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.mylyn.commons.core.StatusHandler;
@@ -121,7 +120,7 @@ public class JiraWebSession {
 			try {
 				// check if session is expired
 				if (doLogin || isAuthenticated(httpClient, hostConfiguration, monitor)) {
-					callback.configure(httpClient, hostConfiguration, baseUrl, client.getConfiguration()
+					callback.configure(httpClient, hostConfiguration, baseUrl, client.getLocalConfiguration()
 							.getFollowRedirects());
 					callback.run(client, baseUrl, monitor);
 					return;
@@ -227,10 +226,10 @@ public class JiraWebSession {
 	private String getContentType() {
 		String characterEncoding = getCharacterEncoding();
 		if (characterEncoding == null) {
-			characterEncoding = client.getConfiguration().getCharacterEncoding();
+			characterEncoding = client.getLocalConfiguration().getCharacterEncoding();
 		}
 		if (characterEncoding == null) {
-			characterEncoding = client.getConfiguration().getDefaultCharacterEncoding();
+			characterEncoding = client.getLocalConfiguration().getDefaultCharacterEncoding();
 		}
 		return "application/x-www-form-urlencoded; charset=" + characterEncoding; //$NON-NLS-1$
 	}
@@ -282,7 +281,7 @@ public class JiraWebSession {
 				}
 				if (url.endsWith("/success")) { //$NON-NLS-1$
 					String newBaseUrl = url.substring(0, url.lastIndexOf("/success")); //$NON-NLS-1$
-					if (baseUrl.equals(newBaseUrl) || !client.getConfiguration().getFollowRedirects()) {
+					if (baseUrl.equals(newBaseUrl) || !client.getLocalConfiguration().getFollowRedirects()) {
 						// success
 						addAuthenticationCookie(httpClient, login);
 						return hostConfiguration;
@@ -355,7 +354,7 @@ public class JiraWebSession {
 		}
 
 		try {
-			client.getSoapClient().login(new NullProgressMonitor()); // pass NPM so there will be no request credentials dialog
+			client.getSoapClient().login(Policy.backgroundMonitorFor(monitor)); // pass NPM so there will be no request credentials dialog
 		} catch (JiraException e) {
 			if (e instanceof JiraCaptchaRequiredException) {
 				throw (JiraCaptchaRequiredException) e;

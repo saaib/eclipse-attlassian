@@ -66,10 +66,11 @@ import org.eclipse.ui.forms.widgets.Section;
 
 import com.atlassian.connector.eclipse.internal.jira.core.WorkLogConverter;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraWorkLog;
+import com.atlassian.connector.eclipse.internal.jira.core.model.JiraWorkLog.AdjustEstimateMethod;
 import com.atlassian.connector.eclipse.internal.jira.core.service.JiraTimeFormat;
 import com.atlassian.connector.eclipse.internal.jira.core.util.JiraUtil;
 import com.atlassian.connector.eclipse.internal.jira.ui.JiraConnectorUi;
-import com.atlassian.connector.eclipse.internal.jira.ui.actions.JiraUiUtil;
+import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiUtil;
 
 /**
  * @author Steffen Pingel
@@ -99,7 +100,7 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 
 	private String newWorkDoneDescription = ""; //$NON-NLS-1$
 
-	private boolean newWorkDoneAutoAdjust = true;
+	private AdjustEstimateMethod newWorkDoneAdjustEstimate = AdjustEstimateMethod.LEAVE;
 
 	private DateTime dateWidget;
 
@@ -277,7 +278,7 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 				newWorkDoneDate.setTime(log.getStartDate());
 			}
 			newWorkDoneDescription = log.getComment();
-			newWorkDoneAutoAdjust = log.isAutoAdjustEstimate();
+			newWorkDoneAdjustEstimate = log.getAdjustEstimate();
 			TaskAttribute newWorkLogSubmitAttribute = newWorkLogAttribute.getAttribute(WorkLogConverter.ATTRIBUTE_WORKLOG_NEW_SUBMIT_FLAG);
 			if (newWorkLogSubmitAttribute != null && newWorkLogSubmitAttribute.getValue().equals(String.valueOf(true))) {
 				includeWorklog = true;
@@ -317,7 +318,7 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 
 		if (!MonitorUiPlugin.getDefault().getPreferenceStore().getBoolean(MonitorUiPlugin.ACTIVITY_TRACKING_ENABLED)) {
 			Link timeTrackingDisabled = new Link(newWorkLogComposite, SWT.NONE);
-			timeTrackingDisabled.setText("<A>Enable automatic time tracking in Mylyn</A>");
+			timeTrackingDisabled.setText(Messages.WorkLogPart_Enable_Automatic_Tracking);
 			GridDataFactory.fillDefaults().span(3, 1).applyTo(timeTrackingDisabled);
 			timeTrackingDisabled.addSelectionListener(new SelectionAdapter() {
 				@Override
@@ -342,11 +343,8 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 		});
 
 		timeSpentText.setToolTipText(timeSpendTooltip);
-		GridDataFactory.fillDefaults()
-				.span(2, 1)
-				.hint(135, SWT.DEFAULT)
-				.align(SWT.BEGINNING, SWT.FILL)
-				.applyTo(timeSpentText);
+		GridDataFactory.fillDefaults().span(2, 1).hint(135, SWT.DEFAULT).align(SWT.BEGINNING, SWT.FILL).applyTo(
+				timeSpentText);
 
 		toolkit.createLabel(newWorkLogComposite, Messages.WorkLogPart_Start_Date);
 		dateWidget = new DateTime(newWorkLogComposite, SWT.DATE);
@@ -383,24 +381,26 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 		Composite adjustComposite = toolkit.createComposite(newWorkLogComposite);
 		adjustComposite.setLayout(GridLayoutFactory.fillDefaults().spacing(0, 0).create());
 		GridDataFactory.fillDefaults().span(2, 1).applyTo(adjustComposite);
+
 		final Button autoAdjustButton = toolkit.createButton(adjustComposite, Messages.WorkLogPart_Auto_Adjust,
 				SWT.RADIO);
-		autoAdjustButton.setSelection(newWorkDoneAutoAdjust);
+		autoAdjustButton.setSelection(newWorkDoneAdjustEstimate == AdjustEstimateMethod.AUTO);
 		autoAdjustButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				newWorkDoneAutoAdjust = autoAdjustButton.getSelection();
+				newWorkDoneAdjustEstimate = AdjustEstimateMethod.AUTO;
 				addWorkLogToModel();
 			}
 		});
 		autoAdjustButton.setToolTipText(Messages.WorkLogPart_Auto_Adjust_Explanation_Tooltip);
-		Button leaveAdjustButton = toolkit.createButton(adjustComposite, Messages.WorkLogPart_Leave_Existing_Estimate,
-				SWT.RADIO);
-		leaveAdjustButton.setSelection(!newWorkDoneAutoAdjust);
+
+		final Button leaveAdjustButton = toolkit.createButton(adjustComposite,
+				Messages.WorkLogPart_Leave_Existing_Estimate, SWT.RADIO);
+		leaveAdjustButton.setSelection(newWorkDoneAdjustEstimate == AdjustEstimateMethod.LEAVE);
 		leaveAdjustButton.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				newWorkDoneAutoAdjust = autoAdjustButton.getSelection();
+				newWorkDoneAdjustEstimate = AdjustEstimateMethod.LEAVE;
 				addWorkLogToModel();
 			}
 		});
@@ -467,7 +467,7 @@ public class WorkLogPart extends AbstractTaskEditorPart {
 		tempworkLog.setComment(newWorkDoneDescription);
 		tempworkLog.setStartDate(newWorkDoneDate.getTime());
 		tempworkLog.setTimeSpent(newWorkDoneAmount);
-		tempworkLog.setAutoAdjustEstimate(newWorkDoneAutoAdjust);
+		tempworkLog.setAdjustEstimate(newWorkDoneAdjustEstimate);
 		if (tempworkLog.equals(newWorkLog)) {
 			return false;
 		}

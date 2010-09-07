@@ -169,6 +169,8 @@ public class Messages extends NLS {
 
 	public static String JiraProjectPage_Update_Project_Listing;
 
+	public static String JiraRepositorySettingsPage_Administration_priviliges_required;
+
 	public static String JiraRepositorySettingsPage_Advanced_Configuration;
 
 	public static String JiraRepositorySettingsPage_Authentication_credentials_are_valid_character_encodeing;
@@ -185,7 +187,11 @@ public class Messages extends NLS {
 
 	public static String JiraRepositorySettingsPage_Enabled;
 
+	public static String JiraRepositorySettingsPage_Failed_retrieve_repository_configuration;
+
 	public static String JiraRepositorySettingsPage_Follow_redirects;
+
+	public static String JiraRepositorySettingsPage_Getting_repository_configuration;
 
 	public static String JiraRepositorySettingsPage_If_checked_linked_tasks_show_as_subtasks_in_the_task_list;
 
@@ -218,6 +224,8 @@ public class Messages extends NLS {
 	public static String JiraRepositorySettingsPage_Time_tracking;
 
 	public static String JiraRepositorySettingsPage_Use_server_location_;
+
+	public static String JiraRepositorySettingsPage_use_server_settings;
 
 	public static String JiraRepositorySettingsPage_working_days_per_week;
 
