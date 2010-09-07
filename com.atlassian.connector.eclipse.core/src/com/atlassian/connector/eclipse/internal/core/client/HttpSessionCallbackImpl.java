@@ -11,16 +11,19 @@
 
 package com.atlassian.connector.eclipse.internal.core.client;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.eclipse.internal.core.AtlassianCorePlugin;
+import com.atlassian.connector.eclipse.internal.ui.IBrandingConstants;
 import com.atlassian.theplugin.commons.exception.HttpProxySettingsException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
 import com.atlassian.theplugin.commons.remoteapi.rest.AbstractHttpSession;
 import com.atlassian.theplugin.commons.remoteapi.rest.HttpSessionCallback;
 
 import org.apache.commons.httpclient.HostConfiguration;
 import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.HttpConnectionManager;
 import org.apache.commons.httpclient.HttpMethod;
 import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
-import org.apache.commons.httpclient.util.IdleConnectionTimeoutThread;
+import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.mylyn.commons.net.AbstractWebLocation;
 import org.eclipse.mylyn.commons.net.WebUtil;
@@ -36,22 +39,24 @@ import java.util.Map;
  */
 public class HttpSessionCallbackImpl implements HttpSessionCallback {
 
-	private final Map<ServerData, HttpClient> httpClients = new HashMap<ServerData, HttpClient>();
+	private final String userAgent;
 
-	private final Map<String, ServerData> locations = new HashMap<String, ServerData>();
+	/** synchronized on this HttpSessionCallbackImpl */
+	private final Map<ConnectionCfg, HttpClient> httpClients = new HashMap<ConnectionCfg, HttpClient>();
 
-	private final IdleConnectionTimeoutThread idleConnectionTimeoutThread = new IdleConnectionTimeoutThread();
+	private final Map<String, ConnectionCfg> locations = new HashMap<String, ConnectionCfg>();
 
 	public HttpSessionCallbackImpl() {
-		idleConnectionTimeoutThread.start();
+		userAgent = IBrandingConstants.PRODUCT_NAME + "/" + AtlassianCorePlugin.getDefault().getVersion();
 	}
 
-	public synchronized HttpClient getHttpClient(ServerData server) throws HttpProxySettingsException {
+	public synchronized HttpClient getHttpClient(ConnectionCfg server) throws HttpProxySettingsException {
 		HttpClient httpClient = httpClients.get(server);
 
 		// TODO handle the case where we dont have a client initialized
 		assert (httpClient != null);
 
+		httpClient.getParams().setParameter(HttpMethodParams.USER_AGENT, userAgent);
 		return httpClient;
 	}
 
@@ -59,7 +64,7 @@ public class HttpSessionCallbackImpl implements HttpSessionCallback {
 		// nothing to do here
 	}
 
-	public synchronized void removeClient(ServerData server) {
+	public synchronized void removeClient(ConnectionCfg server) {
 		HttpClient client = httpClients.remove(server);
 		if (client != null) {
 			shutdown(client);
@@ -67,18 +72,19 @@ public class HttpSessionCallbackImpl implements HttpSessionCallback {
 	}
 
 	public synchronized void removeClient(AbstractWebLocation location) {
-		ServerData server = locations.remove(location.getUrl());
+		ConnectionCfg server = locations.remove(location.getUrl());
 		if (server != null) {
 			removeClient(server);
 		}
 	}
 
-	public synchronized void updateHostConfiguration(AbstractWebLocation location, ServerData serverCfg) {
+	public synchronized void updateHostConfiguration(AbstractWebLocation location, ConnectionCfg serverCfg) {
 		HttpClient httpClient = httpClients.get(serverCfg);
 		if (httpClient == null) {
 			httpClient = new HttpClient(new MultiThreadedHttpConnectionManager());
 			httpClients.put(serverCfg, httpClient);
 			locations.put(location.getUrl(), serverCfg);
+			WebUtil.addConnectionManager(httpClient.getHttpConnectionManager());
 		}
 		setupHttpClient(location, httpClient);
 	}
@@ -88,7 +94,6 @@ public class HttpSessionCallbackImpl implements HttpSessionCallback {
 				new NullProgressMonitor());
 		httpClient.setHostConfiguration(hostConfiguration);
 		httpClient.getParams().setAuthenticationPreemptive(true);
-		idleConnectionTimeoutThread.addConnectionManager(httpClient.getHttpConnectionManager());
 	}
 
 	@Override
@@ -96,11 +101,13 @@ public class HttpSessionCallbackImpl implements HttpSessionCallback {
 		for (HttpClient httpClient : httpClients.values()) {
 			shutdown(httpClient);
 		}
+		httpClients.clear();
 	}
 
 	public void shutdown(HttpClient httpClient) {
-		((MultiThreadedHttpConnectionManager) httpClient.getHttpConnectionManager()).shutdown();
-		idleConnectionTimeoutThread.removeConnectionManager(httpClient.getHttpConnectionManager());
+		HttpConnectionManager mgr = httpClient.getHttpConnectionManager();
+		WebUtil.removeConnectionManager(mgr);
+		((MultiThreadedHttpConnectionManager) mgr).shutdown();
 	}
 
 	public void clear() {

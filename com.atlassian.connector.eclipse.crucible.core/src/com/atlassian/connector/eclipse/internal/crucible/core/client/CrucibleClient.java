@@ -11,43 +11,48 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.core.client;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
+import com.atlassian.connector.eclipse.internal.core.client.AbstractConnectorClient;
+import com.atlassian.connector.eclipse.internal.core.client.HttpSessionCallbackImpl;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleConstants;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleTaskMapper;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.model.ReviewCache;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
+import com.atlassian.connector.eclipse.internal.fisheye.core.client.IClientDataProvider;
+import com.atlassian.connector.eclipse.internal.fisheye.core.client.IUpdateRepositoryData;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.CrucibleSession;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicReview;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleVersionInfo;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFilterBean;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
+import com.atlassian.theplugin.commons.crucible.api.model.ExtendedCrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.model.PermId;
 import com.atlassian.theplugin.commons.crucible.api.model.PredefinedFilter;
 import com.atlassian.theplugin.commons.crucible.api.model.Repository;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
+import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.RemoteApiLoginException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
+import com.atlassian.theplugin.commons.util.MiscUtil;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.mylyn.commons.net.AbstractWebLocation;
-import org.eclipse.mylyn.commons.net.AuthenticationCredentials;
-import org.eclipse.mylyn.commons.net.AuthenticationType;
-import org.eclipse.mylyn.commons.net.Policy;
-import org.eclipse.mylyn.commons.net.UnsupportedRequestException;
 import org.eclipse.mylyn.tasks.core.IRepositoryQuery;
-import org.eclipse.mylyn.tasks.core.RepositoryStatus;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.core.data.TaskAttribute;
 import org.eclipse.mylyn.tasks.core.data.TaskAttributeMapper;
 import org.eclipse.mylyn.tasks.core.data.TaskData;
 import org.eclipse.mylyn.tasks.core.data.TaskDataCollector;
+import org.eclipse.osgi.util.NLS;
+import org.joda.time.DateTime;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 
@@ -58,137 +63,35 @@ import java.util.List;
  * @author Thomas Ehrnhoefer
  * @author Wojciech Seliga
  */
-public class CrucibleClient {
+public class CrucibleClient extends AbstractConnectorClient<CrucibleServerFacade2, CrucibleSession> implements
+		IUpdateRepositoryData, IClientDataProvider {
 
 	private final CrucibleClientData clientData;
 
-	private AbstractWebLocation location;
-
-	private ServerData crucibleServerCfg;
-
-	private final CrucibleServerFacade crucibleServer;
-
 	private final ReviewCache cachedReviewManager;
 
-	public abstract static class RemoteOperation<T> {
-
-		private final IProgressMonitor fMonitor;
-
-		private final TaskRepository taskRepository;
-
-		public RemoteOperation(IProgressMonitor monitor, TaskRepository taskRepository) {
-			this.taskRepository = taskRepository;
-			this.fMonitor = Policy.monitorFor(monitor);
-		}
-
-		public TaskRepository getTaskRepository() {
-			return taskRepository;
-		}
-
-		public IProgressMonitor getMonitor() {
-			return fMonitor;
-		}
-
-		public abstract T run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
-				throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException;
-
-	}
-
-	public CrucibleClient(AbstractWebLocation location, ServerData serverCfg, CrucibleServerFacade crucibleServer,
-			CrucibleClientData data, ReviewCache cachedReviewManager) {
-		this.location = location;
+	public CrucibleClient(AbstractWebLocation location, ConnectionCfg serverCfg, CrucibleServerFacade2 crucibleServer,
+			CrucibleClientData data, ReviewCache cachedReviewManager, HttpSessionCallbackImpl callback) {
+		super(location, serverCfg, crucibleServer, callback);
 		this.clientData = data;
-		this.crucibleServerCfg = serverCfg;
-		this.crucibleServer = crucibleServer;
 		this.cachedReviewManager = cachedReviewManager;
 	}
 
-	public ServerData getServerData() {
-		return crucibleServerCfg;
-	}
-
-	public void setCrucibleServerCfg(ServerData crucibleServerCfg) {
-		this.crucibleServerCfg = crucibleServerCfg;
-	}
-
-	public <T> T execute(RemoteOperation<T> op) throws CoreException {
-		IProgressMonitor monitor = op.getMonitor();
-		TaskRepository taskRepository = op.getTaskRepository();
-		try {
-
-			if (taskRepository.getCredentials(AuthenticationType.REPOSITORY).getPassword().length() < 1) {
-				try {
-					location.requestCredentials(AuthenticationType.REPOSITORY, null, monitor);
-				} catch (UnsupportedRequestException e) {
-					// ignore
-				}
-			}
-
-			monitor.beginTask("Connecting to Crucible", IProgressMonitor.UNKNOWN);
-			updateServer();
-			return op.run(crucibleServer, crucibleServerCfg, op.getMonitor());
-		} catch (CrucibleLoginException e) {
-			return executeRetry(op, monitor, e);
-		} catch (RemoteApiLoginException e) {
-			if (e.getCause() instanceof IOException) {
-				throw new CoreException(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID, e.getMessage(), e));
-			}
-			return executeRetry(op, monitor, e);
-		} catch (ServerPasswordNotProvidedException e) {
-			return executeRetry(op, monitor, e);
-		} catch (RemoteApiException e) {
-			throw new CoreException(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID, e.getMessage(), e));
-		} finally {
-			monitor.done();
-		}
-	}
-
-	private <T> T executeRetry(RemoteOperation<T> op, IProgressMonitor monitor, Exception e) throws CoreException {
-		try {
-			location.requestCredentials(AuthenticationType.REPOSITORY, null, monitor);
-		} catch (UnsupportedRequestException ex) {
-			throw new CoreException(new Status(IStatus.ERROR, CrucibleCorePlugin.PLUGIN_ID,
-					RepositoryStatus.ERROR_REPOSITORY_LOGIN, e.getMessage(), e));
-		}
-		return execute(op);
-	}
-
-	public String getUserName() {
-		AuthenticationCredentials credentials = location.getCredentials(AuthenticationType.REPOSITORY);
-		if (credentials != null) {
-			return credentials.getUserName();
-		} else {
-			return null;
-		}
-	}
-
-	private void updateServer() {
-		AuthenticationCredentials credentials = location.getCredentials(AuthenticationType.REPOSITORY);
-		if (credentials != null) {
-			crucibleServerCfg = crucibleServerCfg.withCredentials(credentials.getUserName(), credentials.getPassword());
-		}
-	}
-
-	public void validate(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
-		execute(new RemoteOperation<Void>(monitor, taskRepository) {
-			@Override
-			public Void run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
-					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
-				server.testServerConnection(serverCfg);
-				return null;
-			}
-		});
+	@Override
+	protected CrucibleSession getSession(ConnectionCfg connectionCfg) throws RemoteApiException,
+			ServerPasswordNotProvidedException {
+		return facade.getSession(connectionCfg);
 	}
 
 	public TaskData getTaskData(TaskRepository taskRepository, final String taskId, IProgressMonitor monitor)
 			throws CoreException {
-
-		return execute(new RemoteOperation<TaskData>(monitor, taskRepository) {
+		CrucibleCorePlugin.getMonitoring().logJob("getTaskData", null); //$NON-NLS-1$
+		return execute(new CrucibleRemoteOperation<TaskData>(monitor, taskRepository) {
 			@Override
-			public TaskData run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+			public TaskData run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 				String permId = CrucibleUtil.getPermIdFromTaskId(taskId);
-				Review review = server.getReview(serverCfg, new PermIdBean(permId));
+				Review review = server.getReview(serverCfg, new PermId(permId));
 
 				int metricsVersion = review.getMetricsVersion();
 				if (cachedReviewManager != null && !cachedReviewManager.hasMetrics(metricsVersion)) {
@@ -215,19 +118,20 @@ public class CrucibleClient {
 
 	public void performQuery(TaskRepository taskRepository, final IRepositoryQuery query,
 			final TaskDataCollector resultCollector, IProgressMonitor monitor) throws CoreException {
-		execute(new RemoteOperation<Void>(monitor, taskRepository) {
+		CrucibleCorePlugin.getMonitoring().logJob("performQuery", null); //$NON-NLS-1$
+		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
 			@Override
-			public Void run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 				TaskRepository taskRepository = getTaskRepository();
 				if (!CrucibleUtil.isFilterDefinition(query)) {
 					String filterId = query.getAttribute(CrucibleConstants.KEY_FILTER_ID);
 					PredefinedFilter filter = CrucibleUtil.getPredefinedFilter(filterId);
 					if (filter != null) {
-						List<Review> reviewsForFilter = server.getReviewsForFilter(serverCfg, filter);
-						for (Review review : reviewsForFilter) {
+						List<BasicReview> reviewsForFilter = server.getReviewsForFilter(serverCfg, filter);
+						for (BasicReview review : reviewsForFilter) {
 
-							collectTaskDataForReview(taskRepository, resultCollector, review);
+							collectTaskDataForReview(server, serverCfg, taskRepository, resultCollector, review);
 						}
 					} else {
 						throw new RemoteApiException("No predefined filter exists for string: " + filterId);
@@ -235,10 +139,10 @@ public class CrucibleClient {
 				} else {
 					CustomFilterBean customFilter = CrucibleUtil.createCustomFilterFromQuery(query);
 
-					List<Review> reviewsForFilter = server.getReviewsForCustomFilter(serverCfg, customFilter);
-					for (Review review : reviewsForFilter) {
+					List<BasicReview> reviewsForFilter = server.getReviewsForCustomFilter(serverCfg, customFilter);
+					for (BasicReview review : reviewsForFilter) {
 
-						collectTaskDataForReview(taskRepository, resultCollector, review);
+						collectTaskDataForReview(server, serverCfg, taskRepository, resultCollector, review);
 					}
 				}
 				return null;
@@ -247,16 +151,15 @@ public class CrucibleClient {
 		});
 	}
 
-	private void collectTaskDataForReview(final TaskRepository taskRepository, final TaskDataCollector resultCollector,
-			Review review) throws RemoteApiException, ServerPasswordNotProvidedException {
-		String taskId = CrucibleUtil.getTaskIdFromReview(review);
-		if (CrucibleUtil.isPartialReview(review)) {
-			review = crucibleServer.getReview(crucibleServerCfg, review.getPermId());
-		}
+	private void collectTaskDataForReview(CrucibleServerFacade2 crucibleFacade, ConnectionCfg conCfg,
+			final TaskRepository taskRepository, final TaskDataCollector resultCollector, BasicReview basicReview)
+			throws RemoteApiException, ServerPasswordNotProvidedException {
+		String taskId = CrucibleUtil.getTaskIdFromReview(basicReview);
+		Review review = crucibleFacade.getReview(conCfg, basicReview.getPermId());
 
-		int metricsVersion = review.getMetricsVersion();
+		int metricsVersion = basicReview.getMetricsVersion();
 		if (cachedReviewManager != null && !cachedReviewManager.hasMetrics(metricsVersion)) {
-			cachedReviewManager.setMetrics(metricsVersion, crucibleServer.getMetrics(crucibleServerCfg, metricsVersion));
+			cachedReviewManager.setMetrics(metricsVersion, facade.getMetrics(conCfg, metricsVersion));
 		}
 
 		boolean hasChanged = cacheReview(taskId, review);
@@ -268,11 +171,11 @@ public class CrucibleClient {
 		String summary = review.getName();
 		String key = review.getPermId().getId();
 		String id = CrucibleUtil.getTaskIdFromReview(review);
-		String owner = review.getAuthor().getUserName();
+		String owner = review.getAuthor().getUsername();
 		Date creationDate = review.getCreateDate();
 		Date closeDate = review.getCloseDate();
 
-		if (CrucibleUtil.isCompleted(review) || CrucibleUtil.isUserCompleted(getUserName(), review)) {
+		if (CrucibleUtil.isCompleted(review) || CrucibleUtil.isUserCompleted(getUsername(), review)) {
 			if (closeDate == null) {
 				closeDate = new Date();
 			}
@@ -296,6 +199,22 @@ public class CrucibleClient {
 		mapper.setOwner(owner);
 		mapper.setCompletionDate(closeDate);
 		mapper.setTaskUrl(CrucibleUtil.getReviewUrl(taskRepository.getUrl(), id));
+
+		List<String> cc = MiscUtil.buildArrayList();
+		if (review.getModerator() != null) {
+			cc.add(review.getModerator().getUsername());
+		}
+		if (review.getReviewers() != null) {
+			for (Reviewer reviewer : review.getReviewers()) {
+				cc.add(reviewer.getUsername());
+			}
+		}
+		mapper.setCc(cc);
+
+		final DateTime dueDate = review.getDueDate();
+		if (dueDate != null) {
+			mapper.setDueDate(dueDate.toDate());
+		}
 
 		TaskAttribute hasChangedAttribute = taskData.getRoot().createAttribute(
 				CrucibleConstants.HAS_CHANGED_TASKDATA_KEY);
@@ -321,22 +240,74 @@ public class CrucibleClient {
 		return clientData;
 	}
 
-	public void updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
-		execute(new RemoteOperation<Void>(monitor, taskRepository) {
+	public CrucibleVersionInfo updateVersionInfo(IProgressMonitor monitor, TaskRepository taskRepository)
+			throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateVersionInfo", null); //$NON-NLS-1$
+		return execute(new CrucibleRemoteSessionOperation<CrucibleVersionInfo>(monitor, taskRepository) {
+
 			@Override
-			public Void run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+			public CrucibleVersionInfo run(CrucibleSession session, IProgressMonitor monitor)
+					throws RemoteApiException, ServerPasswordNotProvidedException {
+				SubMonitor submonitor = SubMonitor.convert(monitor, "Updating server version info", 1);
+				CrucibleVersionInfo versionInfo = session.getServerVersion();
+				clientData.setVersionInfo(versionInfo);
+				submonitor.worked(1);
+				return versionInfo;
+			}
+		});
+	}
+
+	private void initializeCache(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
+			throws RemoteApiException, ServerPasswordNotProvidedException {
+		SubMonitor submonitor = SubMonitor.convert(monitor, "Updating repository data", 4);
+		CrucibleVersionInfo versionInfo = server.getServerVersion(serverCfg);
+		clientData.setVersionInfo(versionInfo);
+		submonitor.worked(1);
+
+		List<BasicProject> projects = server.getProjects(serverCfg);
+		clientData.setProjects(projects);
+		submonitor.worked(1);
+
+		List<User> users = server.getUsers(serverCfg);
+		clientData.setUsers(users);
+		submonitor.worked(1);
+
+		List<Repository> repositories = server.getRepositories(serverCfg);
+		clientData.setRepositories(repositories);
+		submonitor.worked(1);
+	}
+
+	public void updateRepositoryData(IProgressMonitor monitor, TaskRepository taskRepository) throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateRepositoryData", null); //$NON-NLS-1$
+		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
+			@Override
+			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
-				monitor.subTask("Retrieving Crucible projects");
-				List<CrucibleProject> projects = server.getProjects(serverCfg);
-				clientData.setProjects(projects);
+				initializeCache(server, serverCfg, monitor);
+				return null;
+			}
+		});
+	}
 
-				monitor.subTask("Retrieving Crucible users");
-				List<User> users = server.getUsers(serverCfg);
-				clientData.setUsers(users);
+	public void updateProjectDetails(IProgressMonitor monitor, TaskRepository taskRepository, final String projectKey)
+			throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("updateProjectDetails", null); //$NON-NLS-1$
+		execute(new CrucibleRemoteOperation<Void>(monitor, taskRepository) {
+			@Override
+			public Void run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
+					throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
 
-				monitor.subTask("Retrieving Crucible repositories");
-				List<Repository> repositories = server.getRepositories(serverCfg);
-				clientData.setRepositories(repositories);
+				SubMonitor submonitor = SubMonitor.convert(monitor, NLS.bind("Updating project details for {0}",
+						projectKey), 2);
+
+				if (clientData == null || clientData.getCachedProjects() == null) {
+					initializeCache(server, serverCfg, submonitor.newChild(1));
+				}
+
+				ExtendedCrucibleProject details = server.getSession(serverCfg).getProject(projectKey);
+				clientData.updateProject(details);
+
+				submonitor.worked(1);
 				return null;
 			}
 		});
@@ -353,9 +324,22 @@ public class CrucibleClient {
 		return false;
 	}
 
-	// needed so that the ui location can replace the default one
-	public void updateLocation(AbstractWebLocation newLocation) {
-		this.location = newLocation;
+	public DownloadAvatarsJob createDownloadAvatarsJob(TaskRepository taskRepository, Review review) {
+		return new DownloadAvatarsJob(this, taskRepository, review);
+	}
+
+	public Review changeReviewState(final BasicReview review, final CrucibleAction action, TaskRepository repository,
+			IProgressMonitor progressMonitor) throws CoreException {
+		CrucibleCorePlugin.getMonitoring().logJob("changeReviewState", null); //$NON-NLS-1$
+		BasicReview basicReview = execute(new CrucibleRemoteSessionOperation<BasicReview>(progressMonitor, repository) {
+			@Override
+			public BasicReview run(CrucibleSession session, IProgressMonitor monitor) throws RemoteApiException,
+					ServerPasswordNotProvidedException {
+				return session.changeReviewState(review.getPermId(), action);
+			}
+		});
+		String taskId = CrucibleUtil.getTaskIdFromReview(basicReview);
+		return getReview(repository, taskId, true, progressMonitor);
 	}
 
 }

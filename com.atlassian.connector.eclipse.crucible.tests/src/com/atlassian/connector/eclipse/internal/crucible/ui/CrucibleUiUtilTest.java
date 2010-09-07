@@ -13,25 +13,18 @@ package com.atlassian.connector.eclipse.internal.crucible.ui;
 
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClientData;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedProject;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedUser;
-import com.atlassian.connector.eclipse.ui.team.CrucibleFile;
+import com.atlassian.connector.eclipse.team.ui.CrucibleFile;
 import com.atlassian.theplugin.commons.VersionedVirtualFile;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfoImpl;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProject;
-import com.atlassian.theplugin.commons.crucible.api.model.CrucibleProjectBean;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralCommentBean;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
+import com.atlassian.theplugin.commons.crucible.api.model.ExtendedCrucibleProject;
+import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
+import com.atlassian.theplugin.commons.crucible.api.model.PermId;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-import com.atlassian.theplugin.commons.crucible.api.model.ReviewBean;
 import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
-import com.atlassian.theplugin.commons.crucible.api.model.ReviewerBean;
 import com.atlassian.theplugin.commons.crucible.api.model.User;
-import com.atlassian.theplugin.commons.crucible.api.model.UserBean;
 import com.atlassian.theplugin.commons.util.MiscUtil;
 
 import org.eclipse.mylyn.commons.net.AuthenticationCredentials;
@@ -45,6 +38,7 @@ import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.ui.TasksUi;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -136,7 +130,7 @@ public class CrucibleUiUtilTest extends TestCase {
 
 		String repositoryUrl = "https://testServer.com";
 
-		Review review = new ReviewBean(repositoryUrl);
+		Review review = prepareReview(repositoryUrl);
 
 		assertNull(CrucibleUiUtil.getCrucibleTaskRepository((Review) null));
 		assertNull(CrucibleUiUtil.getCrucibleTaskRepository(review));
@@ -160,8 +154,8 @@ public class CrucibleUiUtilTest extends TestCase {
 
 		String repositoryUrl = "https://testServer.com";
 
-		Review review = new ReviewBean(repositoryUrl);
-		review.setPermId(new PermIdBean(taskKey));
+		Review review = prepareReview(repositoryUrl);
+		review.setPermId(new PermId(taskKey));
 
 		assertNull(CrucibleUiUtil.getCrucibleTask(null));
 		assertNull(CrucibleUiUtil.getCrucibleTask(review));
@@ -187,21 +181,20 @@ public class CrucibleUiUtilTest extends TestCase {
 	public void testIsFilePartOfActiveReview() {
 		String repositoryUrl = "http://crucible.atlassian.com/cru/";
 
-		Review reviewA = new ReviewBean(repositoryUrl);
-		Review reviewB = new ReviewBean(repositoryUrl);
+		Review reviewA = prepareReview(repositoryUrl);
+		Review reviewB = prepareReview(repositoryUrl);
 
 		ITask task = new TaskTask("kind", "url", "A");
 
-		CrucibleFile file1 = new CrucibleFile(new CrucibleFileInfoImpl(new VersionedVirtualFile("abc", "123"), null,
-				new PermIdBean("1")), false);
-		CrucibleFile file2 = new CrucibleFile(new CrucibleFileInfoImpl(new VersionedVirtualFile("def", "456"), null,
-				new PermIdBean("2")), false);
-		CrucibleFile file3 = new CrucibleFile(new CrucibleFileInfoImpl(new VersionedVirtualFile("ghi", "789"), null,
-				new PermIdBean("3")), false);
-		CrucibleFile file4 = new CrucibleFile(new CrucibleFileInfoImpl(new VersionedVirtualFile(null, null), null,
-				new PermIdBean("4")), false);
-		CrucibleFile file5 = new CrucibleFile(new CrucibleFileInfoImpl(null, null, new PermIdBean("5")), false);
-		CrucibleFile file6 = new CrucibleFile(null, false);
+		CrucibleFile file1 = new CrucibleFile(new CrucibleFileInfo(new VersionedVirtualFile("abc", "123"), null,
+				new PermId("1")), false);
+		CrucibleFile file2 = new CrucibleFile(new CrucibleFileInfo(new VersionedVirtualFile("def", "456"), null,
+				new PermId("2")), false);
+		CrucibleFile file3 = new CrucibleFile(new CrucibleFileInfo(new VersionedVirtualFile("ghi", "789"), null,
+				new PermId("3")), false);
+		CrucibleFile file4 = new CrucibleFile(new CrucibleFileInfo(new VersionedVirtualFile(null, null), null,
+				new PermId("4")), false);
+		CrucibleFile file5 = new CrucibleFile(new CrucibleFileInfo(null, null, new PermId("5")), false);
 
 		Set<CrucibleFileInfo> setA = new HashSet<CrucibleFileInfo>();
 		setA.add(file1.getCrucibleFileInfo());
@@ -226,36 +219,33 @@ public class CrucibleUiUtilTest extends TestCase {
 
 		assertFalse(CrucibleUiUtil.isFilePartOfActiveReview(file4));
 		assertFalse(CrucibleUiUtil.isFilePartOfActiveReview(file5));
-		assertFalse(CrucibleUiUtil.isFilePartOfActiveReview(file6));
 	}
 
 	public void testGetCachedUsersReview() {
 		Review review = createMockReview(createMockRepository());
 
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(
-				CrucibleUiUtil.getCrucibleTaskRepository(review));
+		final CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(CrucibleUiUtil.getCrucibleTaskRepository(review));
 
-		assertNotNull(client);
-
-		CrucibleClientData clientData = client.getClientData();
 		assertNotNull(clientData);
 
 		List<User> users = new ArrayList<User>();
-		users.add(new UserBean("uA", "userA"));
-		users.add(new UserBean("uB", "userB"));
-		users.add(new UserBean("uC", "userC"));
+		users.add(new User("uA", "userA"));
+		users.add(new User("uB", "userB"));
+		users.add(new User("uC", "userC"));
 		clientData.setUsers(users);
 
-		Set<CrucibleCachedUser> usersReceivedSet = CrucibleUiUtil.getCachedUsers(review);
+		Set<User> usersReceivedSet = CrucibleUiUtil.getCachedUsers(review);
 
 		Set<User> usersExpectedSet = new HashSet<User>(users);
 		assertEquals(usersExpectedSet.size(), usersReceivedSet.size());
 
-		for (CrucibleCachedUser cachedUser : usersReceivedSet) {
+		for (User cachedUser : usersReceivedSet) {
 			for (User user : users) {
-				if (user.getUserName().equals(cachedUser.getUserName())) {
+				if (user.getUsername().equals(cachedUser.getUsername())) {
 					assertEquals(user.getDisplayName(), cachedUser.getDisplayName());
-					assertTrue("Expected user " + user.getUserName() + " not found in set",
+					assertTrue("Expected user " + user.getUsername() + " not found in set",
 							usersExpectedSet.remove(user));
 				}
 			}
@@ -265,7 +255,7 @@ public class CrucibleUiUtilTest extends TestCase {
 
 	private Review createMockReview(TaskRepository repo) {
 		TasksUi.getRepositoryManager().addRepository(repo);
-		Review review = new ReviewBean(repo.getRepositoryUrl());
+		Review review = new Review(repo.getRepositoryUrl(), "prj-key", new User("anauthor"), null);
 		return review;
 	}
 
@@ -275,102 +265,107 @@ public class CrucibleUiUtilTest extends TestCase {
 		return repo;
 	}
 
-	public void testGetCurrentUserNameReview() {
+	public void testGetCurrentUsernameReview() {
 		Review review = createMockReview(createMockRepository());
 
-		assertEquals("user", CrucibleUiUtil.getCurrentUserName(review));
+		assertEquals("user", CrucibleUiUtil.getCurrentUsername(review));
 	}
 
-	public void testGetCurrentUserNameRepository() {
+	public void testGetCurrentUsernameRepository() {
 		TaskRepository repository = createMockRepository();
 
-		assertEquals("user", CrucibleUiUtil.getCurrentUserName(repository));
+		assertEquals("user", CrucibleUiUtil.getCurrentUsername(repository));
 	}
 
 	public void testGetCurrentCachedUserRepository() {
 		TaskRepository repo = createMockRepository();
 		createMockReview(repo);
 
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(repo);
-		CrucibleClientData clientData = client.getClientData();
-		User userA = new UserBean("a", "userA");
-		User userB = new UserBean("user", "u");
+		final CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(repo);
+		assertNotNull(clientData);
+
+		User userA = new User("userA", "a");
+		User userB = new User("user", "u");
 		List<User> users = new ArrayList<User>();
 		users.add(userA);
 		users.add(userB);
 		clientData.setUsers(users);
 
-		assertFalse(new CrucibleCachedUser("userA", "a").equals(CrucibleUiUtil.getCurrentCachedUser(repo)));
-		assertFalse(new CrucibleCachedUser(userA).equals(CrucibleUiUtil.getCurrentCachedUser(repo)));
-		assertEquals(new CrucibleCachedUser("u", "user"), CrucibleUiUtil.getCurrentCachedUser(repo));
-		assertEquals(new CrucibleCachedUser(userB), CrucibleUiUtil.getCurrentCachedUser(repo));
+		assertFalse(new User("userA", "a").equals(CrucibleUiUtil.getCurrentCachedUser(repo)));
+		assertFalse(userA.equals(CrucibleUiUtil.getCurrentCachedUser(repo)));
+		assertEquals(new User("user", "u"), CrucibleUiUtil.getCurrentCachedUser(repo));
+		assertEquals(userB, CrucibleUiUtil.getCurrentCachedUser(repo));
 	}
 
 	public void testGetCurrentCachedUserReview() {
 		TaskRepository repo = createMockRepository();
 		Review review = createMockReview(repo);
 
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(repo);
-		CrucibleClientData clientData = client.getClientData();
-		User userA = new UserBean("a", "userA");
-		User userB = new UserBean("user", "u");
+		final CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(repo);
+		assertNotNull(clientData);
+
+		User userA = new User("userA", "a");
+		User userB = new User("user", "u");
 		List<User> users = new ArrayList<User>();
 		users.add(userA);
 		users.add(userB);
 		clientData.setUsers(users);
 
-		assertFalse(new CrucibleCachedUser("userA", "a").equals(CrucibleUiUtil.getCurrentCachedUser(review)));
-		assertFalse(new CrucibleCachedUser(userA).equals(CrucibleUiUtil.getCurrentCachedUser(review)));
-		assertEquals(new CrucibleCachedUser("u", "user"), CrucibleUiUtil.getCurrentCachedUser(review));
-		assertEquals(new CrucibleCachedUser(userB), CrucibleUiUtil.getCurrentCachedUser(review));
+		assertFalse(new User("userA", "a").equals(CrucibleUiUtil.getCurrentCachedUser(review)));
+		assertFalse(userA.equals(CrucibleUiUtil.getCurrentCachedUser(review)));
+		assertEquals(new User("user", "u"), CrucibleUiUtil.getCurrentCachedUser(review));
+		assertEquals(userB, CrucibleUiUtil.getCurrentCachedUser(review));
 	}
 
 	public void testGetCachedUser() {
 		TaskRepository repo = createMockRepository();
 		createMockReview(repo);
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(repo);
-		CrucibleClientData clientData = client.getClientData();
-		User userA = new UserBean("a", "userA");
-		User userB = new UserBean("b", "userB");
+		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(repo);
+		User userA = new User("userA", "a");
+		User userB = new User("userB", "b");
 		List<User> users = new ArrayList<User>();
 		users.add(userA);
 		users.add(userB);
 		clientData.setUsers(users);
 
-		assertEquals(new CrucibleCachedUser("userA", "a"), CrucibleUiUtil.getCachedUser("a", repo));
-		assertEquals(new CrucibleCachedUser(userA), CrucibleUiUtil.getCachedUser("a", repo));
-		assertEquals(new CrucibleCachedUser("userB", "b"), CrucibleUiUtil.getCachedUser("b", repo));
-		assertEquals(new CrucibleCachedUser(userB), CrucibleUiUtil.getCachedUser("b", repo));
+		assertEquals(new User("userA", "a"), CrucibleUiUtil.getCachedUser("userA", repo));
+		assertEquals(userA, CrucibleUiUtil.getCachedUser("userA", repo));
+		assertEquals(new User("userB", "b"), CrucibleUiUtil.getCachedUser("userB", repo));
+		assertEquals(userB, CrucibleUiUtil.getCachedUser("userB", repo));
 	}
 
 	public void testGetCachedUsersRepository() {
 		TaskRepository repository = createMockRepository();
 		Review review = createMockReview(repository);
 
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(
-				CrucibleUiUtil.getCrucibleTaskRepository(review));
+		CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(CrucibleUiUtil.getCrucibleTaskRepository(review));
 
-		assertNotNull(client);
-
-		CrucibleClientData clientData = client.getClientData();
 		assertNotNull(clientData);
 
 		List<User> users = new ArrayList<User>();
-		users.add(new UserBean("uA", "userA"));
-		users.add(new UserBean("uB", "userB"));
-		users.add(new UserBean("uC", "userC"));
+		users.add(new User("userA", "uA"));
+		users.add(new User("userB", "uB"));
+		users.add(new User("userC", "uC"));
 		clientData.setUsers(users);
 
-		Set<CrucibleCachedUser> usersReceivedSet = CrucibleUiUtil.getCachedUsers(repository);
+		Set<User> usersReceivedSet = CrucibleUiUtil.getCachedUsers(repository);
 
 		Set<User> usersExpectedSet = new HashSet<User>(users);
 		assertEquals(usersExpectedSet.size(), usersReceivedSet.size());
 
-		for (CrucibleCachedUser cachedUser : usersReceivedSet) {
+		for (User cachedUser : usersReceivedSet) {
 			for (User user : users) {
-				if (user.getUserName().equals(cachedUser.getUserName())) {
+				if (user.getUsername().equals(cachedUser.getUsername())) {
 					assertEquals(user.getDisplayName(), cachedUser.getDisplayName());
-					assertTrue("Expected user " + user.getUserName() + " not found in set",
+					assertTrue("Expected user " + user.getUsername() + " not found in set",
 							usersExpectedSet.remove(user));
 				}
 			}
@@ -379,49 +374,48 @@ public class CrucibleUiUtilTest extends TestCase {
 	}
 
 	public void testGetCachedProjects() {
+
 		TaskRepository repository = createMockRepository();
 		Review review = createMockReview(repository);
 
-		CrucibleClient client = CrucibleCorePlugin.getRepositoryConnector().getClientManager().getClient(
-				CrucibleUiUtil.getCrucibleTaskRepository(review));
-
-		assertNotNull(client);
-
-		CrucibleClientData clientData = client.getClientData();
+		final CrucibleClientData clientData = CrucibleCorePlugin.getRepositoryConnector()
+				.getClientManager()
+				.getCrucibleClientData(CrucibleUiUtil.getCrucibleTaskRepository(review));
 		assertNotNull(clientData);
 
-		List<CrucibleProject> projects = new ArrayList<CrucibleProject>();
-		CrucibleProjectBean projectA = new CrucibleProjectBean();
-		projectA.setKey("a");
-		projectA.setName("AA");
-		projectA.setId("AaA");
-		CrucibleProjectBean projectB = new CrucibleProjectBean();
-		projectB.setKey("b");
-		projectB.setName("BB");
-		projectB.setId("BbB");
+		List<BasicProject> projects = new ArrayList<BasicProject>();
+		BasicProject projectA = new BasicProject("a", "AA", "AaA");
+		BasicProject projectB = new BasicProject("b", "BB", "BbB");
 		projects.add(projectA);
 		projects.add(projectB);
 		clientData.setProjects(projects);
 
-		Set<CrucibleCachedProject> usersReceivedSet = CrucibleUiUtil.getCachedProjects(repository);
+		Collection<BasicProject> usersReceivedSet = CrucibleUiUtil.getCachedProjects(repository);
 
 		assertEquals(2, usersReceivedSet.size());
 
-		CrucibleCachedProject cachedProjectA = new CrucibleCachedProject("AaA", "AA", "a");
-		CrucibleCachedProject cachedProjectB = new CrucibleCachedProject("BbB", "BB", "b");
+		BasicProject cachedProjectA = new BasicProject("a", "AA", "AaA");
+		BasicProject cachedProjectB = new BasicProject("b", "BB", "BbB");
 		assertTrue(usersReceivedSet.contains(cachedProjectA));
 		assertTrue(usersReceivedSet.contains(cachedProjectB));
+		assertEquals(BasicProject.class, clientData.getCrucibleProject("BB").getClass());
+		assertEquals(BasicProject.class, clientData.getCrucibleProject("AA").getClass());
+
+		clientData.updateProject(new ExtendedCrucibleProject("b", "BB", "My extended Project", MiscUtil.buildArrayList(
+				"userA", "userB")));
+		assertEquals(ExtendedCrucibleProject.class, clientData.getCrucibleProject("BB").getClass());
+		assertEquals(BasicProject.class, clientData.getCrucibleProject("AA").getClass());
 	}
 
-	public void testGetUserNamesFromUsers() {
+	public void testGetUsernamesFromUsers() {
 		List<User> users = new ArrayList<User>();
-		users.add(new UserBean("uA", "userA"));
-		users.add(new UserBean("uB", "userB"));
-		users.add(new UserBean("uC", "userC"));
-		users.add(new UserBean("uC", "userC"));
-		users.add(new UserBean("uD", "userD"));
+		users.add(new User("uA", "userA"));
+		users.add(new User("uB", "userB"));
+		users.add(new User("uC", "userC"));
+		users.add(new User("uC", "userC"));
+		users.add(new User("uD", "userD"));
 
-		Set<String> userNames = CrucibleUiUtil.getUserNamesFromUsers(users);
+		Set<String> userNames = CrucibleUiUtil.getUsernamesFromUsers(users);
 		assertEquals(4, userNames.size());
 		assertTrue(userNames.contains("uA"));
 		assertTrue(userNames.contains("uB"));
@@ -431,21 +425,21 @@ public class CrucibleUiUtilTest extends TestCase {
 
 	public void testHasCurrentUserCompletedReview() {
 		Review review = createMockReview(createMockRepository());
-		review.setReviewers(Collections.singleton((Reviewer) new ReviewerBean("user", true)));
+		review.setReviewers(Collections.singleton(new Reviewer("user", true)));
 
 		assertTrue(CrucibleUiUtil.hasCurrentUserCompletedReview(review));
 	}
 
 	public void testIsUserReviewer() {
 		Review review = createMockReview(createMockRepository());
-		review.setReviewers(Collections.singleton((Reviewer) new ReviewerBean("user", true)));
+		review.setReviewers(Collections.singleton((Reviewer) new Reviewer("user", true)));
 
 		assertTrue(CrucibleUiUtil.isUserReviewer("user", review));
 	}
 
 	public void testIsCurrentUserReviewer() {
 		Review review = createMockReview(createMockRepository());
-		review.setReviewers(Collections.singleton((Reviewer) new ReviewerBean("user", true)));
+		review.setReviewers(Collections.singleton((Reviewer) new Reviewer("user", true)));
 
 		assertTrue(CrucibleUiUtil.isCurrentUserReviewer(review));
 	}
@@ -454,19 +448,23 @@ public class CrucibleUiUtilTest extends TestCase {
 		TaskRepository repo = createMockRepository();
 		TasksUi.getRepositoryManager().addRepository(repo);
 
-		Review review = new ReviewBean(repo.getUrl());
+		Review review = prepareReview(repo.getUrl());
 		review.setActions(MiscUtil.buildHashSet(CrucibleAction.COMMENT));
-		GeneralCommentBean comment = new GeneralCommentBean();
+		GeneralComment comment = new GeneralComment(review, null);
 		final String connUserName = repo.getCredentials(AuthenticationType.REPOSITORY).getUserName();
-		UserBean me = new UserBean("not" + connUserName);
+		User me = new User("not" + connUserName);
 		comment.setAuthor(me);
 		assertFalse(CrucibleUiUtil.canModifyComment(review, comment));
-		comment.setAuthor(new UserBean(connUserName));
+		comment.setAuthor(new User(connUserName));
 		assertTrue(CrucibleUiUtil.canModifyComment(review, comment));
 		review.setActions(MiscUtil.buildHashSet(CrucibleAction.VIEW, CrucibleAction.COMMENT, CrucibleAction.CLOSE));
 		assertTrue(CrucibleUiUtil.canModifyComment(review, comment));
 		review.setActions(MiscUtil.buildHashSet(CrucibleAction.VIEW, CrucibleAction.CLOSE));
 		assertFalse(CrucibleUiUtil.canModifyComment(review, comment));
+	}
+
+	private Review prepareReview(String url) {
+		return new Review(url, "prkey", new User("myauthor"), new User("mymoderator"));
 	}
 
 }

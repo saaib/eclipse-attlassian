@@ -11,48 +11,45 @@
 
 package com.atlassian.connector.eclipse.internal.crucible.ui.dialogs;
 
+import com.atlassian.connector.commons.api.ConnectionCfg;
+import com.atlassian.connector.commons.crucible.CrucibleServerFacade2;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient.RemoteOperation;
+import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleRemoteOperation;
 import com.atlassian.connector.eclipse.internal.crucible.ui.CrucibleUiPlugin;
-import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleReviewersPart;
-import com.atlassian.connector.eclipse.ui.dialogs.ProgressDialog;
-import com.atlassian.theplugin.commons.crucible.CrucibleServerFacade;
-import com.atlassian.theplugin.commons.crucible.ValueNotYetInitialized;
+import com.atlassian.connector.eclipse.internal.crucible.ui.editor.parts.CrucibleParticipantUiUtil;
 import com.atlassian.theplugin.commons.crucible.api.CrucibleLoginException;
 import com.atlassian.theplugin.commons.crucible.api.model.Comment;
+import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
 import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
-import com.atlassian.theplugin.commons.crucible.api.model.User;
 import com.atlassian.theplugin.commons.crucible.api.model.VersionedComment;
 import com.atlassian.theplugin.commons.exception.ServerPasswordNotProvidedException;
 import com.atlassian.theplugin.commons.remoteapi.RemoteApiException;
-import com.atlassian.theplugin.commons.remoteapi.ServerData;
-
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.jface.dialogs.IDialogConstants;
+import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.resource.ImageRegistry;
+import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.window.Window;
 import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.mylyn.internal.tasks.ui.TasksUiPlugin;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.events.SelectionAdapter;
-import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.DisposeEvent;
+import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
-
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -64,7 +61,7 @@ import java.util.Set;
  * @author Thomas Ehrnhoefer
  * @author Shawn Minto
  */
-public class CrucibleSummarizeReviewDialog extends ProgressDialog {
+public class CrucibleSummarizeReviewDialog extends AbstractCrucibleReviewActionDialog {
 
 	private final class SummarizeReviewRunnable implements IRunnableWithProgress {
 		public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
@@ -73,11 +70,13 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 
 			try {
 				if (!discardDrafts) {
-					//post all drafts
-					RemoteOperation<Object> publishDraftsOp = new RemoteOperation<Object>(monitor, getTaskRepository()) {
+					// post all drafts
+					CrucibleRemoteOperation<Object> publishDraftsOp = new CrucibleRemoteOperation<Object>(monitor,
+							getTaskRepository()) {
 						@Override
-						public Object run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
-								throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
+						public Object run(CrucibleServerFacade2 server, ConnectionCfg serverCfg,
+								IProgressMonitor monitor) throws CrucibleLoginException, RemoteApiException,
+								ServerPasswordNotProvidedException {
 							server.publishAllCommentsForReview(serverCfg, review.getPermId());
 							return null;
 						}
@@ -85,13 +84,13 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 					client.execute(publishDraftsOp);
 					updatedReview = client.getReview(getTaskRepository(), getTaskId(), true, monitor);
 				}
-				//summarize
-				RemoteOperation<Object> summarizeOp = new RemoteOperation<Object>(monitor, getTaskRepository()) {
+				// summarise & close
+				CrucibleRemoteOperation<Object> summarizeOp = new CrucibleRemoteOperation<Object>(monitor,
+						getTaskRepository()) {
 					@Override
-					public Object run(CrucibleServerFacade server, ServerData serverCfg, IProgressMonitor monitor)
+					public Object run(CrucibleServerFacade2 server, ConnectionCfg serverCfg, IProgressMonitor monitor)
 							throws CrucibleLoginException, RemoteApiException, ServerPasswordNotProvidedException {
-						// ignore
-						server.summarizeReview(serverCfg, review.getPermId());
+						server.getSession(serverCfg).changeReviewState(review.getPermId(), CrucibleAction.SUMMARIZE);
 						server.closeReview(serverCfg, review.getPermId(), summaryString);
 						return null;
 					}
@@ -113,35 +112,15 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 
 	private static final String COMPLETED_REVIEWS_INFO = "Reviewers that have finished this review:";
 
-	private final Review review;
-
-	private Review updatedReview;
-
-	private final String userName;
-
-	private final TaskRepository taskRepository;
-
-	private final String taskKey;
-
-	private final String taskId;
-
-	private final CrucibleClient client;
-
 	private Text summaryText;
 
 	private String summaryString = "";
 
-	private boolean discardDrafts = true;
+	private ImageRegistry imageRegistry;
 
 	public CrucibleSummarizeReviewDialog(Shell parentShell, Review review, String userName, String taskKey,
 			String taskId, TaskRepository taskRepository, CrucibleClient client) {
-		super(parentShell);
-		this.review = review;
-		this.userName = userName;
-		this.taskKey = taskKey;
-		this.taskId = taskId;
-		this.taskRepository = taskRepository;
-		this.client = client;
+		super(parentShell, review, userName, taskRepository, taskKey, taskId, client, "&Summarize and Close");
 	}
 
 	@Override
@@ -149,6 +128,12 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 		getShell().setText("Summarize and Close");
 		setTitle("Summarize and Close Review");
 		setMessage("Provide an optional comment.");
+		imageRegistry = new ImageRegistry();
+		parent.addDisposeListener(new DisposeListener() {
+			public void widgetDisposed(DisposeEvent e) {
+				imageRegistry.dispose();
+			}
+		});
 
 		Composite composite = new Composite(parent, SWT.NONE);
 		composite.setLayout(new GridLayout(1, false));
@@ -169,10 +154,18 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 	}
 
 	private void handleOpenReviewsAndDrafts(Composite composite) {
-		boolean hasDrafts = checkForDrafts();
 		boolean hasOthersDrafts = checkForOthersDrafts();
 		Set<Reviewer> openReviewers = getOpenReviewers();
 		Set<Reviewer> completedReviewers = getCompletedReviewers();
+
+		if (openReviewers.size() > 0) {
+			final Composite draftsWarning = new Composite(composite, SWT.NONE);
+			draftsWarning.setLayout(new RowLayout());
+			Label imageControl = new Label(draftsWarning, SWT.NONE);
+			imageControl.setImage(JFaceResources.getImage(Dialog.DLG_IMG_MESSAGE_WARNING));
+			Label labelControl = new Label(draftsWarning, SWT.WRAP);
+			labelControl.setText(OTHER_DRAFTS_WARNING);
+		}
 
 		Composite draftComp = new Composite(composite, SWT.NONE);
 		GridLayout draftCompLayout = new GridLayout(1, false);
@@ -183,7 +176,8 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 
 		boolean hasCompletedReviewers = false;
 		if (completedReviewers.size() > 0) {
-			new CrucibleReviewersPart(completedReviewers).createControl(null, draftComp, COMPLETED_REVIEWS_INFO);
+			new Label(draftComp, SWT.NONE).setText(COMPLETED_REVIEWS_INFO);
+			CrucibleParticipantUiUtil.createReviewersListComposite(null, draftComp, completedReviewers, imageRegistry, null);
 			hasCompletedReviewers = true;
 		}
 
@@ -192,70 +186,29 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 				GridDataFactory.fillDefaults().grab(true, false).applyTo(
 						new Label(draftComp, SWT.SEPARATOR | SWT.HORIZONTAL));
 			}
-			new CrucibleReviewersPart(openReviewers).createControl(null, draftComp, OPEN_REVIEWS_WARNING);
-			Label labelControl = new Label(draftComp, SWT.WRAP);
-			labelControl.setText(OTHER_DRAFTS_WARNING);
+
+			new Label(draftComp, SWT.NONE).setText(OPEN_REVIEWS_WARNING);
+			CrucibleParticipantUiUtil.createReviewersListComposite(null, draftComp, openReviewers, imageRegistry, null);
+
 			if (hasOthersDrafts) {
-				Set<Reviewer> othersDrafts = getOthersDrafts();
-				new CrucibleReviewersPart(othersDrafts).createControl(null, draftComp, "Reviewers with draft comments:");
+				final Set<Reviewer> othersDrafts = getOthersDrafts();
+				new Label(draftComp, SWT.NONE).setText("Reviewers with draft comments:");
+				CrucibleParticipantUiUtil.createReviewersListComposite(null, draftComp, othersDrafts, imageRegistry, null);
 			}
 		}
 
-		if (hasDrafts) {
-			GridDataFactory.fillDefaults().grab(true, false).applyTo(
-					new Label(draftComp, SWT.SEPARATOR | SWT.HORIZONTAL));
-			Label draftComments = new Label(draftComp, SWT.NONE);
-			draftComments.setText("You have open drafts in this review. Please choose an action:");
-			GridDataFactory.fillDefaults().span(2, 1).applyTo(draftComments);
-
-			Button deleteDrafts = new Button(draftComp, SWT.RADIO);
-			deleteDrafts.setText("Discard Drafts");
-			deleteDrafts.addSelectionListener(new SelectionAdapter() {
-				@Override
-				public void widgetSelected(SelectionEvent e) {
-					discardDrafts = true;
-				}
-			});
-			Button postDrafts = new Button(draftComp, SWT.RADIO);
-			postDrafts.setText("Post Drafts");
-			postDrafts.addSelectionListener(new SelectionAdapter() {
-				@Override
-				public void widgetSelected(SelectionEvent e) {
-					discardDrafts = false;
-				}
-			});
-			deleteDrafts.setSelection(discardDrafts);
-		}
-	}
-
-	private boolean checkForDrafts() {
-		try {
-			if ((review.getNumberOfGeneralCommentsDrafts() + review.getNumberOfVersionedCommentsDrafts()) > 0) {
-				return true;
-			}
-		} catch (ValueNotYetInitialized e) {
-			return false;
-		}
-		return false;
+		handleUserDrafts(draftComp);
 	}
 
 	private Set<Reviewer> getOthersDrafts() {
 		Set<Reviewer> othersDrafts = new LinkedHashSet<Reviewer>();
-		try {
-			for (GeneralComment comment : review.getGeneralComments()) {
+		for (Comment comment : review.getGeneralComments()) {
+			checkCommentForDraft(comment, othersDrafts);
+		}
+		for (CrucibleFileInfo file : review.getFiles()) {
+			for (VersionedComment comment : file.getVersionedComments()) {
 				checkCommentForDraft(comment, othersDrafts);
 			}
-		} catch (ValueNotYetInitialized e) {
-			//
-		}
-		try {
-			for (CrucibleFileInfo file : review.getFiles()) {
-				for (VersionedComment comment : file.getVersionedComments()) {
-					checkCommentForDraft(comment, othersDrafts);
-				}
-			}
-		} catch (ValueNotYetInitialized e) {
-			// 
 		}
 		if (othersDrafts.contains(null)) {
 			othersDrafts.remove(null);
@@ -274,89 +227,23 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 		}
 	}
 
-	private Reviewer getReviewer(User author) {
-		try {
-			for (Reviewer reviewer : review.getReviewers()) {
-				if (reviewer.getUserName().equals(author.getUserName())) {
-					return reviewer;
-				}
-			}
-		} catch (ValueNotYetInitialized e) {
-			// 
-		}
-		return null;
-	}
-
-	private Set<Reviewer> getOpenReviewers() {
-		Set<Reviewer> openReviewers = new LinkedHashSet<Reviewer>();
-		try {
-			for (Reviewer reviewer : review.getReviewers()) {
-				if (!reviewer.isCompleted()) {
-					openReviewers.add(reviewer);
-				}
-			}
-		} catch (ValueNotYetInitialized e) {
-			//
-		}
-		return openReviewers;
-	}
-
-	private Set<Reviewer> getCompletedReviewers() {
-		Set<Reviewer> completedReviewers = new LinkedHashSet<Reviewer>();
-		try {
-			for (Reviewer reviewer : review.getReviewers()) {
-				if (reviewer.isCompleted()) {
-					completedReviewers.add(reviewer);
-				}
-			}
-		} catch (ValueNotYetInitialized e) {
-			//
-		}
-		return completedReviewers;
-	}
-
 	/**
 	 * Wont work yet since API does not seem to make other's drafts available
 	 * 
 	 * @return
 	 */
 	private boolean checkForOthersDrafts() {
-		try {
-			int totalDrafts = review.getNumberOfGeneralCommentsDrafts() + review.getNumberOfVersionedCommentsDrafts();
-			int myDrafts = review.getNumberOfGeneralCommentsDrafts(userName)
-					+ review.getNumberOfVersionedCommentsDrafts(userName);
-			if (totalDrafts > myDrafts) {
-				return true;
-			}
-		} catch (ValueNotYetInitialized e) {
-			return false;
+		int totalDrafts = review.getNumberOfGeneralCommentsDrafts() + review.getNumberOfVersionedCommentsDrafts();
+		int myDrafts = review.getNumberOfGeneralCommentsDrafts(userName)
+				+ review.getNumberOfVersionedCommentsDrafts(userName);
+		if (totalDrafts > myDrafts) {
+			return true;
 		}
 		return false;
 	}
 
 	@Override
-	protected void createButtonsForButtonBar(Composite parent) {
-
-		Button summarizeButton = createButton(parent, IDialogConstants.CLIENT_ID + 1, "&Summarize and Close", false);
-		summarizeButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(SelectionEvent e) {
-				summarizeReview();
-			}
-		});
-
-		Button cancelButton = createButton(parent, IDialogConstants.CANCEL_ID, IDialogConstants.CANCEL_LABEL, false);
-
-		cancelButton.addSelectionListener(new SelectionAdapter() {
-			@Override
-			public void widgetSelected(SelectionEvent e) {
-				cancelPressed();
-			}
-		});
-
-	}
-
-	public void summarizeReview() {
+	protected void doAction() {
 
 		summaryString = summaryText.getText();
 		try {
@@ -376,19 +263,4 @@ public class CrucibleSummarizeReviewDialog extends ProgressDialog {
 		close();
 	}
 
-	public String getTaskKey() {
-		return taskKey;
-	}
-
-	public String getTaskId() {
-		return taskId;
-	}
-
-	public TaskRepository getTaskRepository() {
-		return taskRepository;
-	}
-
-	public Review getUpdatedReview() {
-		return updatedReview;
-	}
 }

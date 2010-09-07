@@ -12,6 +12,7 @@
 package com.atlassian.connector.eclipse.internal.bamboo.ui.editor;
 
 import com.atlassian.connector.eclipse.internal.bamboo.core.BambooConstants;
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.AbstractBambooEditorFormPart;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.BambooBuildLogPart;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.BambooCodeChangesPart;
@@ -19,7 +20,6 @@ import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.BambooDet
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.BambooSummaryPart;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.editor.parts.BambooTestPart;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.operations.RetrieveFullBuildInfoJob;
-import com.atlassian.theplugin.commons.bamboo.BambooBuild;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.jobs.IJobChangeEvent;
@@ -27,7 +27,8 @@ import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.jface.dialogs.IMessageProvider;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.resource.JFaceResources;
-import org.eclipse.mylyn.internal.tasks.ui.editors.EditorUtil;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonFormUtil;
+import org.eclipse.mylyn.internal.provisional.commons.ui.CommonUiUtil;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
@@ -94,7 +95,7 @@ public class BambooBuildEditorPage extends BambooFormPage {
 
 	private Color selectionColor;
 
-	private final BambooBuild build;
+	private final EclipseBambooBuild build;
 
 	private final TaskRepository repository;
 
@@ -130,7 +131,7 @@ public class BambooBuildEditorPage extends BambooFormPage {
 
 		selectionColor = new Color(getSite().getShell().getDisplay(), 255, 231, 198);
 
-		EditorUtil.disableScrollingOnFocus(form);
+		CommonFormUtil.disableScrollingOnFocus(form);
 
 		try {
 			setReflow(false);
@@ -167,7 +168,7 @@ public class BambooBuildEditorPage extends BambooFormPage {
 	}
 
 	private void downloadAndRefreshBuild(long delay) {
-		final RetrieveFullBuildInfoJob job = new RetrieveFullBuildInfoJob(this.build, this.repository);
+		final RetrieveFullBuildInfoJob job = new RetrieveFullBuildInfoJob(this.build.getBuild(), this.repository);
 		job.addJobChangeListener(new JobChangeAdapter() {
 			@Override
 			public void done(final IJobChangeEvent event) {
@@ -176,7 +177,7 @@ public class BambooBuildEditorPage extends BambooFormPage {
 						setBusy(false);
 						IStatus status = job.getStatus();
 						if (editorComposite != null) {
-							if (!status.isOK()/* || buildDetails == null || buildLog == null*/) {
+							if (status != null && !status.isOK()/* || buildDetails == null || buildLog == null*/) {
 								getEditor().setMessage(status.getMessage(), IMessageProvider.WARNING,
 										new HyperlinkAdapter() {
 											@Override
@@ -301,7 +302,7 @@ public class BambooBuildEditorPage extends BambooFormPage {
 
 		Menu menu = editorComposite.getMenu();
 		// preserve context menu
-		EditorUtil.setMenu(editorComposite, null);
+		CommonUiUtil.setMenu(editorComposite, null);
 
 		// remove all of the old widgets so that we can redraw the editor
 		for (Control child : editorComposite.getChildren()) {

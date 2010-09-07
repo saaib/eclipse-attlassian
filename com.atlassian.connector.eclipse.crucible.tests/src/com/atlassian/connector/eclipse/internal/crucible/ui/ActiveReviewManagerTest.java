@@ -13,16 +13,14 @@ package com.atlassian.connector.eclipse.internal.crucible.ui;
 
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleCorePlugin;
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
+import com.atlassian.theplugin.commons.crucible.api.model.Comment;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleAction;
 import com.atlassian.theplugin.commons.crucible.api.model.CrucibleFileInfo;
-import com.atlassian.theplugin.commons.crucible.api.model.GeneralComment;
-import com.atlassian.theplugin.commons.crucible.api.model.PermIdBean;
+import com.atlassian.theplugin.commons.crucible.api.model.PermId;
 import com.atlassian.theplugin.commons.crucible.api.model.Review;
-import com.atlassian.theplugin.commons.crucible.api.model.ReviewBean;
 import com.atlassian.theplugin.commons.crucible.api.model.Reviewer;
-import com.atlassian.theplugin.commons.crucible.api.model.ReviewerBean;
 import com.atlassian.theplugin.commons.crucible.api.model.State;
-import com.atlassian.theplugin.commons.crucible.api.model.UserBean;
+import com.atlassian.theplugin.commons.crucible.api.model.User;
 
 import org.eclipse.mylyn.internal.tasks.core.LocalTask;
 import org.eclipse.mylyn.internal.tasks.ui.util.TasksUiInternal;
@@ -290,32 +288,27 @@ public class ActiveReviewManagerTest extends TestCase {
 	}
 
 	private Review createReview(String repositoryUrl, String taskKey) {
-		Review review = new ReviewBean(repositoryUrl);
+		Review review = new Review(repositoryUrl, "prj", new User("aut"), new User("mod"));
 		Set<CrucibleAction> actions = new LinkedHashSet<CrucibleAction>();
 		actions.add(CrucibleAction.ABANDON);
 		actions.add(CrucibleAction.APPROVE);
 		review.setActions(actions);
 		review.setAllowReviewerToJoin(true);
-		review.setAuthor(new UserBean("aut"));
 		review.setCloseDate(new Date(1L));
 		review.setCreateDate(new Date(1L));
-		review.setCreator(new UserBean("cre"));
-		review.setProjectKey("pro");
+		review.setCreator(new User("cre"));
+//		review.setProjectKey("pro");
 		review.setDescription("des");
 		Set<CrucibleFileInfo> files = new LinkedHashSet<CrucibleFileInfo>();
 		review.setFiles(files);
-		List<GeneralComment> genC = new ArrayList<GeneralComment>();
+		List<Comment> genC = new ArrayList<Comment>();
 		review.setGeneralComments(genC);
 		review.setMetricsVersion(5);
-		review.setModerator(new UserBean("mod"));
 		review.setName("nam");
-		review.setPermId(new PermIdBean(taskKey));
-		review.setProjectKey("prj");
+		review.setPermId(new PermId(taskKey));
 		review.setRepoName("rep");
 		Set<Reviewer> reviewers = new LinkedHashSet<Reviewer>();
-		ReviewerBean reviewer = new ReviewerBean();
-		reviewer.setUserName("use");
-		reviewer.setCompleted(false);
+		Reviewer reviewer = new Reviewer("user", false);
 		reviewers.add(reviewer);
 		review.setReviewers(reviewers);
 		review.setState(State.CLOSED);

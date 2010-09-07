@@ -15,16 +15,16 @@ import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleRepository
 import com.atlassian.connector.eclipse.internal.crucible.core.CrucibleUtil;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClient;
 import com.atlassian.connector.eclipse.internal.crucible.core.client.CrucibleClientData;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedProject;
-import com.atlassian.connector.eclipse.internal.crucible.core.client.model.CrucibleCachedUser;
-import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleUserContentProvider;
 import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleUserLabelProvider;
 import com.atlassian.connector.eclipse.internal.crucible.ui.commons.CrucibleUserSorter;
 import com.atlassian.connector.eclipse.ui.commons.TreeContentProvider;
+import com.atlassian.theplugin.commons.crucible.api.model.BasicProject;
 import com.atlassian.theplugin.commons.crucible.api.model.CustomFilter;
 import com.atlassian.theplugin.commons.crucible.api.model.State;
+import com.atlassian.theplugin.commons.crucible.api.model.User;
 
 import org.eclipse.jface.layout.GridLayoutFactory;
+import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ComboViewer;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.LabelProvider;
@@ -62,9 +62,9 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 
 	private static final String TITLE = "New Crucible Query";
 
-	private static final CrucibleCachedUser USER_ANY = new CrucibleCachedUser(ANY, "ANY_USER");
+	private static final User USER_ANY = new User("ANY_USER", ANY);
 
-	private static final CrucibleCachedProject PROJECT_ANY = new CrucibleCachedProject(ANY, ANY, "ANY_PROJECT");
+	private static final BasicProject PROJECT_ANY = new BasicProject(ANY, "ANY_PROJECT", ANY);
 
 	private Button allRolesButton;
 
@@ -130,8 +130,8 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		projectCombo.setLabelProvider(new LabelProvider() {
 			@Override
 			public String getText(Object element) {
-				if (element instanceof CrucibleCachedProject) {
-					return ((CrucibleCachedProject) element).getName();
+				if (element instanceof BasicProject) {
+					return ((BasicProject) element).getName();
 				}
 				return super.getText(element);
 			}
@@ -188,7 +188,7 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		label.setLayoutData(new GridData());
 
 		authorCombo = new ComboViewer(rolesGroup, SWT.READ_ONLY);
-		authorCombo.setContentProvider(new CrucibleUserContentProvider());
+		authorCombo.setContentProvider(new ArrayContentProvider());
 		authorCombo.setLabelProvider(new CrucibleUserLabelProvider());
 		authorCombo.setSorter(new CrucibleUserSorter());
 		authorCombo.getControl().setLayoutData(new GridData(GridData.HORIZONTAL_ALIGN_FILL | GridData.GRAB_HORIZONTAL));
@@ -198,7 +198,7 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		label.setLayoutData(new GridData());
 
 		moderatorCombo = new ComboViewer(rolesGroup, SWT.READ_ONLY);
-		moderatorCombo.setContentProvider(new CrucibleUserContentProvider());
+		moderatorCombo.setContentProvider(new ArrayContentProvider());
 		moderatorCombo.setLabelProvider(new CrucibleUserLabelProvider());
 		moderatorCombo.setSorter(new CrucibleUserSorter());
 		moderatorCombo.getControl().setLayoutData(
@@ -209,7 +209,7 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		label.setLayoutData(new GridData());
 
 		creatorCombo = new ComboViewer(rolesGroup, SWT.READ_ONLY);
-		creatorCombo.setContentProvider(new CrucibleUserContentProvider());
+		creatorCombo.setContentProvider(new ArrayContentProvider());
 		creatorCombo.setLabelProvider(new CrucibleUserLabelProvider());
 		creatorCombo.setSorter(new CrucibleUserSorter());
 		creatorCombo.getControl()
@@ -220,7 +220,7 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		label.setLayoutData(new GridData());
 
 		reviewerCombo = new ComboViewer(rolesGroup, SWT.READ_ONLY);
-		reviewerCombo.setContentProvider(new CrucibleUserContentProvider());
+		reviewerCombo.setContentProvider(new ArrayContentProvider());
 		reviewerCombo.setLabelProvider(new CrucibleUserLabelProvider());
 		reviewerCombo.setSorter(new CrucibleUserSorter());
 		reviewerCombo.getControl().setLayoutData(
@@ -262,11 +262,10 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 
 	@Override
 	protected void doRefresh() {
-		Set<CrucibleCachedUser> users = new HashSet<CrucibleCachedUser>(getClient().getClientData().getCachedUsers());
+		Set<User> users = new HashSet<User>(getCrucibleClientData().getCachedUsers());
 		users.add(USER_ANY);
 
-		Set<CrucibleCachedProject> projects = new HashSet<CrucibleCachedProject>(getClient().getClientData()
-				.getCachedProjects());
+		Set<BasicProject> projects = new HashSet<BasicProject>(getCrucibleClientData().getCachedProjects());
 		projects.add(PROJECT_ANY);
 
 		// TODO add the ANY values and set selections to be what they were before if they exist
@@ -306,6 +305,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		return ((CrucibleRepositoryConnector) getConnector()).getClientManager().getClient(getTaskRepository());
 	}
 
+	private CrucibleClientData getCrucibleClientData() {
+		return ((CrucibleRepositoryConnector) getConnector()).getClientManager().getCrucibleClientData(
+				getTaskRepository());
+	}
+
 	@Override
 	protected boolean restoreState(IRepositoryQuery query) {
 
@@ -314,31 +318,31 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		}
 
 		String project = query.getAttribute(CustomFilter.PROJECT);
-		CrucibleCachedProject cachedProject = getCachedProject(project);
+		BasicProject cachedProject = getCachedProject(project);
 		if (cachedProject != null) {
 			projectCombo.setSelection(new StructuredSelection(cachedProject));
 		}
 
 		String author = query.getAttribute(CustomFilter.AUTHOR);
-		CrucibleCachedUser cachedAuthor = getCachedUser(author);
+		User cachedAuthor = getCachedUser(author);
 		if (cachedAuthor != null) {
 			authorCombo.setSelection(new StructuredSelection(cachedAuthor));
 		}
 
 		String creator = query.getAttribute(CustomFilter.CREATOR);
-		CrucibleCachedUser cachedCreator = getCachedUser(creator);
+		User cachedCreator = getCachedUser(creator);
 		if (cachedCreator != null) {
 			creatorCombo.setSelection(new StructuredSelection(cachedCreator));
 		}
 
 		String moderator = query.getAttribute(CustomFilter.MODERATOR);
-		CrucibleCachedUser cachedModerator = getCachedUser(moderator);
+		User cachedModerator = getCachedUser(moderator);
 		if (cachedModerator != null) {
 			moderatorCombo.setSelection(new StructuredSelection(cachedModerator));
 		}
 
 		String reviewer = query.getAttribute(CustomFilter.REVIEWER);
-		CrucibleCachedUser cachedReviewer = getCachedUser(reviewer);
+		User cachedReviewer = getCachedUser(reviewer);
 		if (cachedReviewer != null) {
 			reviewerCombo.setSelection(new StructuredSelection(cachedReviewer));
 		}
@@ -371,15 +375,15 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		return true;
 	}
 
-	private CrucibleCachedUser getCachedUser(String username) {
+	private User getCachedUser(String username) {
 		if (username == null || username.length() == 0) {
 			return USER_ANY;
 		}
 
-		CrucibleClientData clientData = getClient().getClientData();
+		final CrucibleClientData clientData = getCrucibleClientData();
 		if (clientData != null && clientData.getCachedUsers() != null) {
-			for (CrucibleCachedUser user : clientData.getCachedUsers()) {
-				if (user.getUserName().equals(username)) {
+			for (User user : clientData.getCachedUsers()) {
+				if (user.getUsername().equals(username)) {
 					return user;
 				}
 			}
@@ -388,14 +392,14 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		return null;
 	}
 
-	private CrucibleCachedProject getCachedProject(String projectKey) {
+	private BasicProject getCachedProject(String projectKey) {
 		if (projectKey == null || projectKey.length() == 0) {
 			return PROJECT_ANY;
 		}
 
-		CrucibleClientData clientData = getClient().getClientData();
+		final CrucibleClientData clientData = getCrucibleClientData();
 		if (clientData != null && clientData.getCachedProjects() != null) {
-			for (CrucibleCachedProject project : clientData.getCachedProjects()) {
+			for (BasicProject project : clientData.getCachedProjects()) {
 				if (project.getKey().equals(projectKey)) {
 					return project;
 				}
@@ -457,11 +461,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		ISelection selection = reviewerCombo.getSelection();
 		if (selection instanceof StructuredSelection) {
 			Object obj = ((StructuredSelection) selection).getFirstElement();
-			if (obj instanceof CrucibleCachedUser) {
+			if (obj instanceof User) {
 				if (obj == USER_ANY) {
 					return "";
 				} else {
-					return ((CrucibleCachedUser) obj).getUserName();
+					return ((User) obj).getUsername();
 				}
 			}
 		}
@@ -472,11 +476,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		ISelection selection = projectCombo.getSelection();
 		if (selection instanceof StructuredSelection) {
 			Object obj = ((StructuredSelection) selection).getFirstElement();
-			if (obj instanceof CrucibleCachedProject) {
+			if (obj instanceof BasicProject) {
 				if (obj == PROJECT_ANY) {
 					return "";
 				} else {
-					return ((CrucibleCachedProject) obj).getKey();
+					return ((BasicProject) obj).getKey();
 				}
 			}
 		}
@@ -491,11 +495,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		ISelection selection = moderatorCombo.getSelection();
 		if (selection instanceof StructuredSelection) {
 			Object obj = ((StructuredSelection) selection).getFirstElement();
-			if (obj instanceof CrucibleCachedUser) {
+			if (obj instanceof User) {
 				if (obj == USER_ANY) {
 					return "";
 				} else {
-					return ((CrucibleCachedUser) obj).getUserName();
+					return ((User) obj).getUsername();
 				}
 			}
 		}
@@ -506,11 +510,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		ISelection selection = creatorCombo.getSelection();
 		if (selection instanceof StructuredSelection) {
 			Object obj = ((StructuredSelection) selection).getFirstElement();
-			if (obj instanceof CrucibleCachedUser) {
+			if (obj instanceof User) {
 				if (obj == USER_ANY) {
 					return "";
 				} else {
-					return ((CrucibleCachedUser) obj).getUserName();
+					return ((User) obj).getUsername();
 				}
 			}
 		}
@@ -521,11 +525,11 @@ public class CrucibleCustomFilterPage extends AbstractRepositoryQueryPage2 {
 		ISelection selection = authorCombo.getSelection();
 		if (selection instanceof StructuredSelection) {
 			Object obj = ((StructuredSelection) selection).getFirstElement();
-			if (obj instanceof CrucibleCachedUser) {
+			if (obj instanceof User) {
 				if (obj == USER_ANY) {
 					return "";
 				} else {
-					return ((CrucibleCachedUser) obj).getUserName();
+					return ((User) obj).getUsername();
 				}
 			}
 		}

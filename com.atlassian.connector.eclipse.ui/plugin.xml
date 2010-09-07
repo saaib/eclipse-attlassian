@@ -1,13 +1,4 @@
 <plugin>
-   <extension-point id="teamConnector" name="teamConnector" schema="schema/teamConnector.exsd"/>
-   <extension
-         point="org.eclipse.ui.preferencePages">
-      <page
-            class="com.atlassian.connector.eclipse.ui.preferences.AtlassianPreferencePage"
-            id="com.atlassian.connector.eclipse.ui.preferences.AtlassianPreferencePage"
-            name="Atlassian Connector">
-      </page>
-   </extension>
    <extension
          point="org.eclipse.core.runtime.preferences">
       <initializer
@@ -15,5 +6,10 @@
       </initializer>
    </extension>
   
-
+   <extension
+         point="org.eclipse.ui.startup">
+      <startup
+            class="com.atlassian.connector.eclipse.ui.AtlassianUiPlugin$AtlassianUiPluginEarlyStartup">
+      </startup>
+   </extension>
 </plugin>

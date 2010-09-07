@@ -11,9 +11,10 @@
 
 package com.atlassian.connector.eclipse.internal.bamboo.ui.actions;
 
-import com.atlassian.connector.eclipse.internal.bamboo.core.BambooCorePlugin;
+import com.atlassian.connector.eclipse.internal.bamboo.core.BambooConstants;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.BambooImages;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.BambooUiPlugin;
+import com.atlassian.connector.eclipse.internal.bamboo.ui.EclipseBambooBuild;
 import com.atlassian.connector.eclipse.internal.bamboo.ui.operations.RetrieveTestResultsJob;
 import com.atlassian.theplugin.commons.bamboo.BambooBuild;
 
@@ -44,24 +45,24 @@ import org.eclipse.jdt.internal.junit.ui.TestRunnerViewPart;
 import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 import org.eclipse.jdt.ui.JavaElementLabels;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.mylyn.commons.core.StatusHandler;
-import org.eclipse.mylyn.tasks.ui.TasksUi;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.actions.BaseSelectionListenerAction;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 /**
  * Action to open the Test Results
  * 
  * @author Thomas Ehrnhoefer
+ * @author Wojciech Seliga
  */
-public class ShowTestResultsAction extends BaseSelectionListenerAction {
+@SuppressWarnings("restriction")
+public class ShowTestResultsAction extends EclipseBambooBuildSelectionListenerAction {
 
 	private static boolean isJUnitAvailable = false;
 
@@ -82,28 +83,18 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 	}
 
 	private void initialize() {
-		setText("Show Test Results");
+		setText(BambooConstants.SHOW_TEST_RESULTS_ACTION_LABEL);
 		setImageDescriptor(BambooImages.JUNIT);
 	}
 
 	@Override
-	public void run() {
-		ISelection s = super.getStructuredSelection();
-		if (s instanceof IStructuredSelection) {
-			IStructuredSelection selection = (IStructuredSelection) s;
-			Object selected = selection.iterator().next();
-			if (selected instanceof BambooBuild) {
-				final BambooBuild build = (BambooBuild) selected;
-				if (build != null) {
-					downloadAndShowTestResults(build);
-				}
-			}
-		}
+	void onRun(EclipseBambooBuild eclipseBambooBuild) {
+		downloadAndShowTestResults(eclipseBambooBuild);
 	}
 
-	private void downloadAndShowTestResults(final BambooBuild build) {
-		RetrieveTestResultsJob job = new RetrieveTestResultsJob(build, TasksUi.getRepositoryManager().getRepository(
-				BambooCorePlugin.CONNECTOR_KIND, build.getServerUrl()));
+	private void downloadAndShowTestResults(final EclipseBambooBuild eclipseBambooBuild) {
+		final BambooBuild build = eclipseBambooBuild.getBuild();
+		RetrieveTestResultsJob job = new RetrieveTestResultsJob(build, eclipseBambooBuild.getTaskRepository());
 		job.addJobChangeListener(new JobChangeAdapter() {
 			@Override
 			public void done(IJobChangeEvent event) {
@@ -116,7 +107,7 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 							public void run() {
 								MessageDialog.openError(Display.getDefault().getActiveShell(), getText(),
 										"Retrieving test result for " + build.getPlanKey() + "-" + build.getNumber()
-												+ " failed. See error log for details.");
+												+ " failed. See Error Log for details.");
 							}
 						});
 					}
@@ -127,20 +118,12 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 	}
 
 	@Override
-	protected boolean updateSelection(IStructuredSelection selection) {
-		if (selection.size() != 1 || !isJUnitAvailable) {
+	boolean onUpdateSelection(EclipseBambooBuild eclipseBambooBuild) {
+		if (!isJUnitAvailable) {
 			return false;
 		}
-		BambooBuild build = (BambooBuild) selection.iterator().next();
-		if (build != null) {
-			try {
-				build.getNumber();
-				return (build.getTestsFailed() + build.getTestsPassed()) > 0;
-			} catch (UnsupportedOperationException e) {
-				return false;
-			}
-		}
-		return false;
+		final BambooBuild build = eclipseBambooBuild.getBuild();
+		return (build.getTestsFailed() + build.getTestsPassed()) > 0;
 	}
 
 	private void showJUnitView(final File testResults, final String buildKey) {
@@ -149,6 +132,19 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 				new ShowTestResultsExecution().execute(testResults, buildKey);
 			}
 		});
+	}
+
+	// see PLE-712, Eclipse 3.6 has a different API for JUnit plugin than older versions. 
+	public static JUnitModel getJunitModel() throws SecurityException, NoSuchMethodException, IllegalArgumentException,
+			IllegalAccessException, InvocationTargetException, ClassNotFoundException {
+		Method getModelMethod;
+		try {
+			getModelMethod = JUnitPlugin.class.getMethod("getModel");
+		} catch (NoSuchMethodException e) {
+			// on e3.6 this stuff has been moved to a new class, which does not even exist on e3.5
+			getModelMethod = Class.forName("org.eclipse.jdt.internal.junit.JUnitCorePlugin").getMethod("getModel");
+		}
+		return (JUnitModel) getModelMethod.invoke(null);
 	}
 
 	/**
@@ -175,8 +171,13 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 				return;
 			}
 			final TestRunSession trs = new TestRunSession("Bamboo build " + buildKey, null) {
+				// entry point for e3.6
+				public boolean rerunTest(String testId, String className, String testName, String launchMode,
+						boolean buildBeforeLaunch) throws CoreException {
+					return rerunTest(testId, className, testName, launchMode);
+				}
 
-				@Override
+				// entry point for e<3.6
 				public boolean rerunTest(String testId, String className, String testName, String launchMode)
 						throws CoreException {
 					String name = className;
@@ -211,7 +212,11 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 			} catch (CoreException e) {
 				StatusHandler.log(new Status(IStatus.ERROR, BambooUiPlugin.PLUGIN_ID, "Error opening JUnit View", e));
 			}
-			JUnitPlugin.getModel().addTestRunSession(trs);
+			try {
+				getJunitModel().addTestRunSession(trs);
+			} catch (Exception e) {
+				StatusHandler.log(new Status(IStatus.ERROR, BambooUiPlugin.PLUGIN_ID, "Error opening JUnit View", e));
+			}
 		}
 
 		/**
@@ -225,7 +230,6 @@ public class ShowTestResultsAction extends BaseSelectionListenerAction {
 		 * 		JUnitLaunchConfigurationConstants.ID_JUNIT_APPLICATION);
 		 * </pre>
 		 */
-		@SuppressWarnings("restriction")
 		protected ILaunchConfigurationWorkingCopy createLaunchConfiguration(IJavaElement element) throws CoreException {
 			final String testName;
 			final String mainTypeQualifiedName;
