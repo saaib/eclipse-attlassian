@@ -152,9 +152,14 @@ public class JiraClient {
 			throws JiraException {
 		JiraCorePlugin.getMonitoring().logJob("advanceIssueWorkflow", null); //$NON-NLS-1$
 
-		Iterable<IssueField> fields = getActionFields(issue.getKey(), actionKey, monitor);
+		try {
+			Iterable<IssueField> fields = getActionFields(issue.getKey(), actionKey, monitor);
 
-		restClient.transitionIssue(issue, actionKey, comment, fields);
+			restClient.transitionIssue(issue, actionKey, comment, fields);
+
+		} catch (RestClientException e) {
+			throw new JiraException(e);
+		}
 
 //		soapClient.progressWorkflowAction(issue, actionKey, fields, monitor);
 //
@@ -239,11 +244,17 @@ public class JiraClient {
 			}
 		}
 
-		String issueKey = restClient.createIssue(issue);
+		try {
+
+			String issueKey = restClient.createIssue(issue);
 
 //		String issueKey = soapClient.createIssue(issue, monitor);
-		//String issueKey = webClient.createIssue(issue, monitor);
-		return getIssueByKey(issueKey, monitor);
+			//String issueKey = webClient.createIssue(issue, monitor);
+			return getIssueByKey(issueKey, monitor);
+
+		} catch (RestClientException e) {
+			throw new JiraException(e);
+		}
 	}
 
 	/**
@@ -342,7 +353,11 @@ public class JiraClient {
 			throws JiraException {
 		JiraCorePlugin.getMonitoring().logJob("getAvailableActions", null); //$NON-NLS-1$
 
-		return restClient.getTransitions(issueKey);
+		try {
+			return restClient.getTransitions(issueKey);
+		} catch (RestClientException e) {
+			throw new JiraException(e);
+		}
 
 //		return soapClient.getAvailableActions(issueKey, monitor);
 	}
@@ -410,8 +425,7 @@ public class JiraClient {
 		JiraCorePlugin.getMonitoring().logJob("getIssueByKey", null); //$NON-NLS-1$
 
 		try {
-			JiraIssue issue = restClient.getIssueByKey(issueKey, monitor);
-			return issue;
+			return restClient.getIssueByKey(issueKey, monitor);
 		} catch (RestClientException e) {
 			throw new JiraException(e);
 		}
@@ -429,12 +443,8 @@ public class JiraClient {
 		JiraCorePlugin.getMonitoring().logJob("getIssueByUrl", null); //$NON-NLS-1$
 
 		try {
-			// TODO rest issue due date field is not displayed if empty
 			// TODO rest retrieve/show custom fields
-			JiraIssue issue = restClient.getIssueById(issueId, monitor);
-
-			return issue;
-
+			return restClient.getIssueById(issueId, monitor);
 		} catch (RestClientException e) {
 			throw new JiraException(e);
 		}

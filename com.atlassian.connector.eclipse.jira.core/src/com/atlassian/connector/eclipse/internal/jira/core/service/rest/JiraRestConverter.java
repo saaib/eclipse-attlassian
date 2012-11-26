@@ -128,7 +128,6 @@ public class JiraRestConverter {
 		jiraIssue.setSelf(issue.getSelf());
 		jiraIssue.setKey(issue.getKey());
 		jiraIssue.setSummary(issue.getSummary());
-		// TODO rest: description html vs text vs wiki markap
 		jiraIssue.setDescription(issue.getDescription());
 //		jiraIssue.setParentId();
 //		jiraIssue.setParentKey();
@@ -169,8 +168,7 @@ public class JiraRestConverter {
 
 				jiraIssue.setSecurityLevel(securityLevel);
 			} catch (JSONException e) {
-				// TODO rest handle exception (log)
-				e.printStackTrace();
+				throw new JiraException(e);
 			}
 		}
 
@@ -208,6 +206,8 @@ public class JiraRestConverter {
 		DateTime dueDate = issue.getDueDate();
 		if (dueDate != null) {
 			jiraIssue.setDue(dueDate.toDate());
+		} else {
+			jiraIssue.setDue(null);
 		}
 
 		jiraIssue.setIssueLinks(convertIssueLinks(issue.getIssueLinks()));
@@ -416,7 +416,7 @@ public class JiraRestConverter {
 		return outIssueType;
 	}
 
-	public static List<JiraIssue> convertIssues(Iterable<BasicIssue> issues) {
+	public static List<JiraIssue> convertIssues(Iterable<? extends BasicIssue> issues) {
 		List<JiraIssue> outIssues = new ArrayList<JiraIssue>();
 
 		for (BasicIssue issue : issues) {
