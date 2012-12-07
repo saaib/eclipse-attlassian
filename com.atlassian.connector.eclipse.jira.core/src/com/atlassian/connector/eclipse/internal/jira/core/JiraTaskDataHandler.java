@@ -36,6 +36,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.mylyn.commons.core.StatusHandler;
 import org.eclipse.mylyn.commons.net.Policy;
+import org.eclipse.mylyn.internal.tasks.ui.TasksUiPlugin;
 import org.eclipse.mylyn.tasks.core.IRepositoryPerson;
 import org.eclipse.mylyn.tasks.core.ITask;
 import org.eclipse.mylyn.tasks.core.ITaskMapping;
@@ -88,6 +89,7 @@ import com.atlassian.connector.eclipse.internal.jira.core.wsdl.beans.RemoteIssue
  * @author Eugene Kuleshov
  * @author Steffen Pingel
  * @author Thomas Ehrnhoefer
+ * @author Jacek Jaroczynski
  * @since 3.0
  */
 public class JiraTaskDataHandler extends AbstractTaskDataHandler {
@@ -173,15 +175,15 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 	private JiraIssue getJiraIssue(JiraClient client, String taskId, String repositoryUrl, IProgressMonitor monitor) //
 			throws CoreException, JiraException {
 		try {
-			int id = Integer.parseInt(taskId);
+//			int id = Integer.parseInt(taskId);
 			// TODO consider keeping a cache of id -> key in the JIRA core plug-in
-//			AbstractTask task = TasksUiPlugin.getTaskList().getTask(repositoryUrl, "" + id);
-//			if (task != null) {
-//				return client.getIssueByKey(task.getTaskKey(), monitor);
-//			} else {
-			String issueKey = client.getKeyFromId(id + "", monitor); //$NON-NLS-1$
-			return client.getIssueByKey(issueKey, monitor);
-//			}
+			ITask task = TasksUiPlugin.getTaskList().getTask(repositoryUrl, taskId);
+
+			if (task != null) {
+				return client.getIssueByKey(task.getTaskKey(), monitor);
+			} else {
+				return client.getIssueById(taskId, monitor);
+			}
 		} catch (NumberFormatException e) {
 			return client.getIssueByKey(taskId, monitor);
 		}
@@ -262,7 +264,7 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 
 		TaskAttribute types = createAttribute(data, JiraAttribute.TYPE);
 		IssueType[] jiraIssueTypes = project.getIssueTypes();
-		if (jiraIssueTypes == null) {
+		if (jiraIssueTypes == null || jiraIssueTypes.length == 0) {
 			jiraIssueTypes = client.getCache().getIssueTypes();
 		}
 		for (int i = 0; i < jiraIssueTypes.length; i++) {
@@ -589,8 +591,9 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 			}
 			taskAttachment.setLength(attachment.getSize());
 			taskAttachment.setCreationDate(attachment.getCreated());
-			taskAttachment.setUrl(client.getBaseUrl() + "/secure/attachment/" + attachment.getId() + "/" //$NON-NLS-1$ //$NON-NLS-2$
-					+ attachment.getName());
+//			taskAttachment.setUrl(client.getBaseUrl() + "/secure/attachment/" + attachment.getId() + "/" //$NON-NLS-1$ //$NON-NLS-2$
+//					+ attachment.getName());
+			taskAttachment.setUrl(attachment.getContent().toString());
 			taskAttachment.applyTo(attribute);
 			i++;
 		}
@@ -648,7 +651,10 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 					IssueField[] editableAttributes = client.getEditableAttributes(jiraIssue.getKey(), monitor);
 					if (editableAttributes != null) {
 						for (IssueField field : editableAttributes) {
+							// TODO rest temporary all custom fields are read only
+//							if (!field.getId().startsWith("customfield")) {
 							editableKeys.add(mapCommonAttributeKey(field.getId()));
+//							}
 						}
 					}
 				} catch (JiraInsufficientPermissionException e) {
@@ -682,6 +688,8 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 				if (JiraFieldType.SELECT.getKey().equals(key) && (options.isEmpty() || properties.isReadOnly())) {
 					properties.setReadOnly(true);
 				} else if (JiraFieldType.MULTISELECT.getKey().equals(key) && options.isEmpty()) {
+					properties.setReadOnly(true);
+				} else if (properties.isReadOnly()) {
 					properties.setReadOnly(true);
 				} else {
 					properties.setReadOnly(!editable);
@@ -929,25 +937,26 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 				return;
 			}
 		}
-		try {
-			JiraWorkLog[] remoteWorklogs = client.getWorklogs(jiraIssue.getKey(), monitor);
-			if (remoteWorklogs != null) {
-				int i = 1;
-				for (JiraWorkLog remoteWorklog : remoteWorklogs) {
-					String attributeId = WorkLogConverter.PREFIX_WORKLOG + "-" + i; //$NON-NLS-1$
-					TaskAttribute attribute = data.getRoot().createAttribute(attributeId);
-					attribute.getMetaData().setType(WorkLogConverter.TYPE_WORKLOG);
-					new WorkLogConverter().applyTo(remoteWorklog, attribute);
-					i++;
-				}
-			} else {
-				data.getRoot().createAttribute(IJiraConstants.ATTRIBUTE_WORKLOG_NOT_SUPPORTED);
+//		try {
+//			JiraWorkLog[] remoteWorklogs = client.getWorklogs(jiraIssue.getKey(), monitor);
+		JiraWorkLog[] remoteWorklogs = jiraIssue.getWorklogs();
+		if (remoteWorklogs != null) {
+			int i = 1;
+			for (JiraWorkLog remoteWorklog : remoteWorklogs) {
+				String attributeId = WorkLogConverter.PREFIX_WORKLOG + "-" + i; //$NON-NLS-1$
+				TaskAttribute attribute = data.getRoot().createAttribute(attributeId);
+				attribute.getMetaData().setType(WorkLogConverter.TYPE_WORKLOG);
+				new WorkLogConverter().applyTo(remoteWorklog, attribute);
+				i++;
 			}
-		} catch (JiraInsufficientPermissionException e) {
-			// ignore
-			trace(e);
+		} else {
 			data.getRoot().createAttribute(IJiraConstants.ATTRIBUTE_WORKLOG_NOT_SUPPORTED);
 		}
+//		} catch (JiraInsufficientPermissionException e) {
+//			// ignore
+//			trace(e);
+//			data.getRoot().createAttribute(IJiraConstants.ATTRIBUTE_WORKLOG_NOT_SUPPORTED);
+//		}
 	}
 
 	public void addOperations(TaskData data, JiraIssue issue, JiraClient client, TaskData oldTaskData,
@@ -994,15 +1003,16 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 //			attribute.putMetaDataValue(TaskAttribute.META_ASSOCIATED_ATTRIBUTE_ID, attributeId);
 //		}
 
-		JiraAction[] availableActions = client.getAvailableActions(issue.getKey(), monitor);
+		Iterable<JiraAction> availableActions = client.getAvailableActions(issue.getKey(), monitor);
 		if (availableActions != null) {
 			for (JiraAction action : availableActions) {
 				attribute = data.getRoot().createAttribute(TaskAttribute.PREFIX_OPERATION + action.getId());
 				TaskOperation.applyTo(attribute, action.getId(), action.getName());
 
-				String[] fields = client.getActionFields(issue.getKey(), action.getId(), monitor);
-				for (String field : fields) {
-					if (TaskAttribute.RESOLUTION.equals(mapCommonAttributeKey(field))) {
+//				String[] fields = client.getActionFields(issue.getKey(), action.getId(), monitor);
+				List<IssueField> fields = action.getFields();
+				for (IssueField field : fields) {
+					if (TaskAttribute.RESOLUTION.equals(mapCommonAttributeKey(field.getId()))) {
 						attribute.getMetaData().putValue(TaskAttribute.META_ASSOCIATED_ATTRIBUTE_ID,
 								TaskAttribute.RESOLUTION);
 					}
@@ -1030,11 +1040,11 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 
 				JiraIssue issue = buildJiraIssue(taskData);
 				if (taskData.isNew()) {
-					if (issue.getType().isSubTaskType() && issue.getParentId() != null) {
-						issue = client.createSubTask(issue, monitor);
-					} else {
-						issue = client.createIssue(issue, monitor);
-					}
+//					if (issue.getType().isSubTaskType() && issue.getParentId() != null) {
+//						issue = client.createSubTask(issue, monitor);
+//					} else {
+					issue = client.createIssue(issue, monitor);
+//					}
 					if (issue == null) {
 						throw new CoreException(new org.eclipse.core.runtime.Status(IStatus.ERROR,
 								JiraCorePlugin.ID_PLUGIN, IStatus.OK, "Could not create issue.", null)); //$NON-NLS-1$
@@ -1081,6 +1091,16 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 					boolean handled = false;
 					boolean advWorkflowHandled = false;
 
+					if (!handled && changeIds.contains(IJiraConstants.WORKLOG_NEW)) {
+						postWorkLog(repository, client, taskData, issue, monitor);
+
+						changeIds.remove(IJiraConstants.WORKLOG_NEW);
+
+						if (changeIds.size() == 0) {
+							handled = true;
+						}
+					}
+
 					// if only reassigning do not do the workflow
 					if (!handled && changeIds.contains(TaskAttribute.USER_ASSIGNED)) {
 						Set<String> anythingElse = new HashSet<String>(changeIds);
@@ -1089,6 +1109,7 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 							// no more changes, so that's a re-assign operation (we can't count on operationId == REASSIGN_OPERATION)
 							client.assignIssueTo(issue, JiraClient.ASSIGNEE_USER, getAssignee(taskData), newComment,
 									monitor);
+
 							handled = true;
 						}
 					}
@@ -1096,7 +1117,8 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 					// if only adv workflow do not do the standard workflow
 					if (!handled && changeIds.contains(TaskAttribute.OPERATION)) {
 						Set<String> anythingElse = new HashSet<String>(changeIds);
-						anythingElse.removeAll(Arrays.asList(TaskAttribute.OPERATION, TaskAttribute.COMMENT_NEW));
+						anythingElse.removeAll(Arrays.asList(TaskAttribute.OPERATION, TaskAttribute.COMMENT_NEW,
+								TaskAttribute.RESOLUTION));
 						if (anythingElse.size() == 0) {
 							// no more changes, so that's a adv workflow operation
 							client.advanceIssueWorkflow(issue, operationId, newComment, monitor);
@@ -1121,16 +1143,18 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 						handled = true;
 					}
 
-					// at last try to at least post the comment (if everything else failed)
+					// try to at least post the comment (if everything else failed)
 					if (!handled && newComment != null && newComment.length() > 0) {
 						client.addCommentToIssue(issue.getKey(), newComment, monitor);
 						handled = true;
 					} else if (soapComment != null) {
-						client.addCommentToIssue(issue.getKey(), soapComment, monitor);
+						// no handling of comments visibility now
+//						client.addCommentToIssue(issue.getKey(), soapComment, monitor);
+						client.addCommentToIssue(issue.getKey(), soapComment.getComment(), monitor);
 						handled = true;
 					}
 
-					postWorkLog(repository, client, taskData, issue, monitor);
+//					postWorkLog(repository, client, taskData, issue, monitor);
 
 					// and do advanced workflow if necessary
 					if (!advWorkflowHandled && !LEAVE_OPERATION.equals(operationId)
@@ -1329,6 +1353,11 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 			issue.setParentId(parentId);
 		}
 
+		String parentKey = getAttributeValue(taskData, JiraAttribute.PARENT_KEY);
+		if (parentKey != null) {
+			issue.setParentKey(parentKey);
+		}
+
 		String securityLevelId = getAttributeValue(taskData, JiraAttribute.SECURITY_LEVEL);
 		if (securityLevelId != null) {
 			issue.setSecurityLevel(new SecurityLevel(securityLevelId));
@@ -1363,7 +1392,9 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		if (componentsAttribute != null) {
 			ArrayList<Component> components = new ArrayList<Component>();
 			for (String value : componentsAttribute.getValues()) {
-				components.add(new Component(value));
+				Component component = new Component(value);
+				component.setName(componentsAttribute.getOption(value));
+				components.add(component);
 			}
 			issue.setComponents(components.toArray(new Component[components.size()]));
 		}
@@ -1372,7 +1403,9 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		if (fixVersionAttr != null) {
 			ArrayList<Version> fixVersions = new ArrayList<Version>();
 			for (String value : fixVersionAttr.getValues()) {
-				fixVersions.add(new Version(value));
+				Version version = new Version(value);
+				version.setName(fixVersionAttr.getOption(value));
+				fixVersions.add(version);
 			}
 			issue.setFixVersions(fixVersions.toArray(new Version[fixVersions.size()]));
 		}
@@ -1382,7 +1415,9 @@ public class JiraTaskDataHandler extends AbstractTaskDataHandler {
 		if (affectsVersionAttr != null) {
 			ArrayList<Version> affectsVersions = new ArrayList<Version>();
 			for (String value : affectsVersionAttr.getValues()) {
-				affectsVersions.add(new Version(value));
+				Version version = new Version(value);
+				version.setName(affectsVersionAttr.getOption(value));
+				affectsVersions.add(version);
 			}
 			issue.setReportedVersions(affectsVersions.toArray(new Version[affectsVersions.size()]));
 		}
