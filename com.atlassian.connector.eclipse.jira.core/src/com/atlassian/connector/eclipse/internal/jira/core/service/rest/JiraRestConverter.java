@@ -15,14 +15,21 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.mylyn.commons.core.StatusHandler;
+import org.eclipse.osgi.util.NLS;
 import org.joda.time.DateTime;
 
+import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
+import com.atlassian.connector.eclipse.internal.jira.core.JiraFieldType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Attachment;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Comment;
 import com.atlassian.connector.eclipse.internal.jira.core.model.Component;
+import com.atlassian.connector.eclipse.internal.jira.core.model.CustomField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueLink;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueType;
@@ -55,8 +62,13 @@ import com.atlassian.jira.rest.client.domain.Worklog;
 import com.atlassian.jira.rest.client.domain.input.WorklogInput;
 import com.atlassian.jira.rest.client.domain.input.WorklogInputBuilder;
 import com.atlassian.jira.rest.client.internal.json.JsonParseUtil;
+import com.google.common.collect.ImmutableList;
 
 public class JiraRestConverter {
+
+	private JiraRestConverter() throws Exception {
+		throw new Exception("Utility class"); //$NON-NLS-1$
+	}
 
 	public static Project[] convertProjects(Iterable<BasicProject> allProjects) {
 		List<Project> projects = new ArrayList<Project>();
@@ -118,13 +130,14 @@ public class JiraRestConverter {
 			throws JiraException {
 		JiraIssue jiraIssue = new JiraIssue();
 
+		jiraIssue.setCustomFields(getCustomFieldsFromIssue(issue));
+
 		Project project = cache.getProjectByKey(issue.getProject().getKey());
 		jiraIssue.setProject(project);
 		if (project != null && !project.hasDetails()) {
 			cache.refreshProjectDetails(project, monitor);
 		}
 
-//		jiraIssue.setId(generateIssueId(issue.getSelf().toString(), issue.getKey()));
 		jiraIssue.setId(issue.getId().toString());
 		jiraIssue.setSelf(issue.getSelf());
 		jiraIssue.setKey(issue.getKey());
@@ -140,7 +153,6 @@ public class JiraRestConverter {
 
 		}
 
-//		jiraIssue.setParentKey();
 		// TODO rest: do we need to use cache here? can't we create priority and other objects from issue?
 		jiraIssue.setPriority(cache.getPriorityByName(issue.getPriority().getName()));
 		jiraIssue.setStatus(cache.getStatusByName(issue.getStatus().getName()));
@@ -200,6 +212,7 @@ public class JiraRestConverter {
 		if (env != null) {
 			jiraIssue.setEnvironment(env.toString());
 		} else {
+			// hack: empty value is necessary to display environment field in the issue editor
 			jiraIssue.setEnvironment(""); //$NON-NLS-1$
 		}
 
@@ -221,6 +234,143 @@ public class JiraRestConverter {
 		jiraIssue.setWorklogs(convertWorklogs(issue.getWorklogs()));
 
 		return jiraIssue;
+	}
+
+	private static CustomField[] getCustomFieldsFromIssue(Issue issue) {
+		JSONObject editmeta = JsonParseUtil.getOptionalJsonObject(issue.getRawObject(), "editmeta");
+
+		if (editmeta != null) {
+
+			JSONObject fields = JsonParseUtil.getOptionalJsonObject(editmeta, "fields");
+
+			if (fields != null) {
+
+				List<CustomField> customFields = new ArrayList<CustomField>();
+
+				for (Field field : issue.getFields()) {
+					if (field.getId().startsWith("customfield") && field.getValue() != null) { //$NON-NLS-1$
+
+						JSONObject jsonField = JsonParseUtil.getOptionalJsonObject(fields, field.getId());
+
+						if (jsonField != null) {
+							try {
+								JSONObject schema = (JSONObject) jsonField.get("schema");
+
+								if (schema != null) {
+
+									String longType = JsonParseUtil.getOptionalString(schema, "custom");
+
+									if (longType != null) {
+										CustomField customField = generateCustomField(field, longType);
+										if (customField != null) {
+											customFields.add(customField);
+										}
+									} else {
+										StatusHandler.log(new org.eclipse.core.runtime.Status(
+												IStatus.WARNING,
+												JiraCorePlugin.ID_PLUGIN,
+												NLS.bind(
+														"Unable to parse type information (edit meta) for field [{0}].", field.getId()))); //$NON-NLS-1$
+									}
+								} else {
+									StatusHandler.log(new org.eclipse.core.runtime.Status(
+											IStatus.WARNING,
+											JiraCorePlugin.ID_PLUGIN,
+											NLS.bind(
+													"Unable to parse type information (edit meta) for field [{0}].", field.getId()))); //$NON-NLS-1$
+								}
+
+							} catch (JSONException e) {
+								StatusHandler.log(new org.eclipse.core.runtime.Status(
+										IStatus.WARNING,
+										JiraCorePlugin.ID_PLUGIN,
+										NLS.bind(
+												"Unable to parse type information (edit meta) for field [{0}].", field.getId()))); //$NON-NLS-1$
+							}
+						} else {
+							StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING,
+									JiraCorePlugin.ID_PLUGIN, NLS.bind(
+											"Type information (edit meta) for field [{0}] not found.", field.getId()))); //$NON-NLS-1$
+						}
+					}
+				}
+
+				return customFields.toArray(new CustomField[customFields.size()]);
+			} else {
+				StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING, JiraCorePlugin.ID_PLUGIN,
+						"Unable to retrieve fields' type information (edit meta). Skipping custom fields parsing.")); //$NON-NLS-1$
+			}
+
+		} else {
+			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING, JiraCorePlugin.ID_PLUGIN,
+					"Unable to retrieve fields' type information (edit meta). Skipping custom fields parsing.")); //$NON-NLS-1$
+		}
+
+		return new CustomField[0];
+	}
+
+	private static CustomField generateCustomField(Field field, String longType) {
+
+		try {
+
+			JiraFieldType fieldType = JiraFieldType.fromKey(longType);
+
+			List<String> values = null;
+
+			switch (fieldType) {
+			case TEXTFIELD:
+			case TEXTAREA:
+			case URL:
+				values = ImmutableList.of(field.getValue().toString());
+				break;
+			case DATE:
+			case DATETIME:
+				values = ImmutableList.of(field.getValue().toString());
+			case FLOATFIELD:
+				values = ImmutableList.of(field.getValue().toString());
+				break;
+			case MULTIUSERPICKER:
+				// no support for multi users on the Mylyn side
+//			values = JiraRestCustomFieldsParser.parseMultiUserPicker(field);
+				values = ImmutableList.of(StringUtils.join(JiraRestCustomFieldsParser.parseMultiUserPicker(field), ", ")); //$NON-NLS-1$
+				break;
+			case USERPICKER:
+				values = ImmutableList.of(JiraRestCustomFieldsParser.parseUserPicker(field));
+				break;
+			case SELECT:
+			case RADIOBUTTONS:
+				values = ImmutableList.of(JiraRestCustomFieldsParser.parseSelect(field));
+				break;
+			case MULTISELECT:
+			case MULTICHECKBOXES:
+				values = JiraRestCustomFieldsParser.parseMultiSelect(field);
+				break;
+			case LABELSS:
+				values = ImmutableList.of(StringUtils.join(JiraRestCustomFieldsParser.parseLabels(field), ", ")); //$NON-NLS-1$
+				break;
+			case GROUPPICKER:
+				values = ImmutableList.of(JiraRestCustomFieldsParser.parseGroupPicker(field));
+				break;
+			case MULTIGROUPPICKER:
+				values = JiraRestCustomFieldsParser.parseMultiGroupPicker(field);
+				break;
+			default:
+				// not supported custom field
+			}
+
+			if (values != null && !values.isEmpty()) {
+
+				CustomField customField = new CustomField(field.getId(), longType, field.getName(), values);
+				customField.setReadOnly(true);
+
+				return customField;
+			}
+		} catch (JSONException e) {
+			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING, JiraCorePlugin.ID_PLUGIN,
+					e.getMessage()));
+		}
+
+		return null;
 	}
 
 	private static JiraWorkLog[] convertWorklogs(Iterable<Worklog> worklogs) {
