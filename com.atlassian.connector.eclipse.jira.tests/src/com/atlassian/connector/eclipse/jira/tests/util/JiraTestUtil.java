@@ -46,7 +46,6 @@ import org.eclipse.mylyn.tests.util.TestUtil.PrivilegeLevel;
 
 import com.atlassian.connector.eclipse.internal.jira.core.JiraClientFactory;
 import com.atlassian.connector.eclipse.internal.jira.core.JiraCorePlugin;
-import com.atlassian.connector.eclipse.internal.jira.core.model.CustomField;
 import com.atlassian.connector.eclipse.internal.jira.core.model.IssueType;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraAction;
 import com.atlassian.connector.eclipse.internal.jira.core.model.JiraFilter;
@@ -102,18 +101,6 @@ public class JiraTestUtil {
 		return task;
 	}
 
-	public static String getCustomField(JiraClient server, String name) throws JiraException {
-		refreshDetails(server);
-
-		CustomField[] fields = server.getCustomAttributes(null);
-		for (CustomField field : fields) {
-			if (field.getName().toLowerCase().startsWith(name.toLowerCase())) {
-				return field.getId();
-			}
-		}
-		return null;
-	}
-
 	public static Resolution getFixedResolution(JiraClient server) throws JiraException {
 		refreshDetails(server);
 
@@ -130,7 +117,7 @@ public class JiraTestUtil {
 		refreshDetails(server);
 
 		ArrayList<String> names = new ArrayList<String>();
-		JiraAction[] actions = server.getAvailableActions(issueKey, null);
+		Iterable<JiraAction> actions = server.getAvailableActions(issueKey, null);
 		for (JiraAction action : actions) {
 			names.add(action.getName());
 			if (action.getName().toLowerCase().startsWith(name)) {

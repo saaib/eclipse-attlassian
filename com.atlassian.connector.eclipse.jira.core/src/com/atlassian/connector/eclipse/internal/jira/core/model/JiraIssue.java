@@ -14,6 +14,7 @@
 package com.atlassian.connector.eclipse.internal.jira.core.model;
 
 import java.io.Serializable;
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
@@ -99,12 +100,20 @@ public class JiraIssue implements Serializable {
 
 	private IssueLink[] issueLinks = new IssueLink[0];
 
+	private JiraWorkLog[] worklogs = new JiraWorkLog[0];
+
 	private SecurityLevel securityLevel;
 
 	private boolean markupDetected;
 
+	private URI self;
+
 	public String getId() {
 		return id;
+	}
+
+	public URI getSelf() {
+		return self;
 	}
 
 	public void setId(String id) {
@@ -480,8 +489,7 @@ public class JiraIssue implements Serializable {
 	public void setValue(String field, String value) {
 		if ("resolution".equals(field)) { //$NON-NLS-1$
 			if (value != null) {
-				resolution = new Resolution();
-				resolution.setId(value);
+				resolution = new Resolution(value);
 			}
 		} else if ("assignee".equals(field)) { //$NON-NLS-1$
 			assignee = value;
@@ -539,6 +547,18 @@ public class JiraIssue implements Serializable {
 
 	public void setAssigneeName(String assigneeName) {
 		this.assigneeName = assigneeName;
+	}
+
+	public void setSelf(URI self) {
+		this.self = self;
+	}
+
+	public JiraWorkLog[] getWorklogs() {
+		return worklogs;
+	}
+
+	public void setWorklogs(JiraWorkLog[] worklogs) {
+		this.worklogs = worklogs;
 	}
 
 }
