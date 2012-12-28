@@ -83,6 +83,7 @@ import com.atlassian.connector.eclipse.internal.jira.ui.JiraUiPlugin;
  * 
  * @author Mik Kersten
  * @author Wesley Coelho (initial integration patch)
+ * @author Jacek Jaroczynski
  */
 public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 
@@ -122,7 +123,7 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 		super(Messages.JiraRepositorySettingsPage_JIRA_Repository_Settings,
 				Messages.JiraRepositorySettingsPage_Validate_server_settings, taskRepository);
 		setNeedsProxy(true);
-		setNeedsHttpAuth(true);
+		setNeedsHttpAuth(false);
 	}
 
 	@Override
@@ -550,11 +551,11 @@ public class JiraRepositorySettingsPage extends AbstractRepositorySettingsPage {
 
 			MultiStatus status = new MultiStatus(JiraUiPlugin.ID_PLUGIN, 0, NLS.bind("Validation results for {0}", //$NON-NLS-1$
 					repository.getRepositoryLabel()), null);
-			status.addAll(serverInfo.getStatistics().getStatus());
+//			status.addAll(serverInfo.getStatistics().getStatus());
 			status.add(new Status(IStatus.INFO, JiraUiPlugin.ID_PLUGIN, NLS.bind(
 					"Web base: {0}", serverInfo.getWebBaseUrl()))); //$NON-NLS-1$
-			status.add(new Status(IStatus.INFO, JiraUiPlugin.ID_PLUGIN, NLS.bind(
-					"Character encoding: {0}", serverInfo.getCharacterEncoding()))); //$NON-NLS-1$
+//			status.add(new Status(IStatus.INFO, JiraUiPlugin.ID_PLUGIN, NLS.bind(
+//					"Character encoding: {0}", serverInfo.getCharacterEncoding()))); //$NON-NLS-1$
 			status.add(new Status(IStatus.INFO, JiraUiPlugin.ID_PLUGIN, NLS.bind("Version: {0}", serverInfo.toString()))); //$NON-NLS-1$
 			StatusHandler.log(status);
 		}
