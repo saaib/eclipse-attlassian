@@ -107,7 +107,7 @@ public class JiraIssue implements Serializable {
 
 	private SecurityLevel securityLevel;
 
-	private boolean markupDetected;
+	private boolean markupDetected = false;
 
 	private URI self;
 

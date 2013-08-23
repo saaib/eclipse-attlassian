@@ -303,21 +303,30 @@ public class JiraRestClientAdapter {
 		return call(new Callable<List<JiraIssue>>() {
 
 			public List<JiraIssue> call() throws Exception {
-				List<JiraIssue> issues = JiraRestConverter.convertIssues(restClient.getSearchClient()
-						.searchJql(jql, maxSearchResult, 0, new NullProgressMonitor())
-						.getIssues());
+				List<JiraIssue> issues = JiraRestConverter.convertIssues(
+						restClient.getSearchClient()
+								.searchJqlWithFullIssues(
+										jql,
+										maxSearchResult,
+										0,
+										ImmutableList.of(IssueRestClient.Expandos.EDITMETA,
+												IssueRestClient.Expandos.SCHEMA), new NullProgressMonitor())
+								.getIssues(), cache, url, monitor);
 
 				List<JiraIssue> fullIssues = new ArrayList<JiraIssue>();
 
 				for (JiraIssue issue : issues) {
-					fullIssues.add(JiraRestConverter.convertIssue(getIssue(issue.getKey()), cache, url, monitor));
+					if (issue.getEditableFields() == null || issue.getCustomFields() == null) {
+						fullIssues.add(JiraRestConverter.convertIssue(getIssue(issue.getKey()), cache, url, monitor));
+					} else {
+						fullIssues.add(issue);
+					}
+
 				}
 
 				return fullIssues;
 			}
-
 		});
-
 	}
 
 //	public Component[] getComponents(String projectKey) {
