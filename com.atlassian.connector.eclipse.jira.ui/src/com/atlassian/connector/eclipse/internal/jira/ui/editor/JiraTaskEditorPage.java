@@ -25,6 +25,7 @@ import org.eclipse.mylyn.internal.tasks.ui.TasksUiPlugin;
 import org.eclipse.mylyn.internal.tasks.ui.editors.TaskEditorAttributePart;
 import org.eclipse.mylyn.internal.tasks.ui.editors.TaskEditorDescriptionPart;
 import org.eclipse.mylyn.internal.tasks.ui.util.TasksUiInternal;
+import org.eclipse.mylyn.tasks.core.ITask.SynchronizationState;
 import org.eclipse.mylyn.tasks.core.RepositoryStatus;
 import org.eclipse.mylyn.tasks.core.data.TaskAttribute;
 import org.eclipse.mylyn.tasks.core.sync.SubmitJob;
@@ -200,9 +201,26 @@ public class JiraTaskEditorPage extends AbstractTaskEditorPage {
 
 	@Override
 	public void init(IEditorSite site, IEditorInput input) {
+		TasksUiPlugin.getTaskDataManager().addListener(updateStartWorkActionListener);
+
 		super.init(site, input);
 
-		TasksUiPlugin.getTaskDataManager().addListener(updateStartWorkActionListener);
+		TasksUiPlugin.getTaskDataManager().addListener(new ITaskDataManagerListener() {
+
+			public void taskDataUpdated(TaskDataManagerEvent event) {
+				PlatformUI.getWorkbench().getDisplay().asyncExec(new Runnable() {
+
+					public void run() {
+						showBusy(false);
+					}
+				});
+
+			}
+
+			public void editsDiscarded(TaskDataManagerEvent event) {
+				// ignore
+			}
+		});
 	}
 
 	private final ITaskDataManagerListener updateStartWorkActionListener = new ITaskDataManagerListener() {
@@ -223,6 +241,11 @@ public class JiraTaskEditorPage extends AbstractTaskEditorPage {
 							if (startWorkAction != null) {
 								// event.getTaskData() sometimes returns null
 								startWorkAction.update(getModel().getTaskData(), event.getTask());
+
+								// hack to not update editor if no changes (missing attachments in bulk REST response: https://jira.atlassian.com/browse/JRA-34471
+								if (event.getTask().getSynchronizationState() == SynchronizationState.SYNCHRONIZED) {
+									showBusy(true);
+								}
 							}
 						}
 					}

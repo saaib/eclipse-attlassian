@@ -101,11 +101,14 @@ public abstract class AbstractStartWorkAction extends AbstractJiraAction {
 
 		TaskAttribute selectedOperationAttribute = taskData.getRoot().getMappedAttribute(TaskAttribute.OPERATION);
 
-		List<TaskOperation> operations = taskData.getAttributeMapper().getTaskOperations(selectedOperationAttribute);
+		if (selectedOperationAttribute != null) {
+			List<TaskOperation> operations = taskData.getAttributeMapper()
+					.getTaskOperations(selectedOperationAttribute);
 
-		for (TaskOperation operation : operations) {
-			if (operationId.equals(operation.getOperationId())) {
-				return true;
+			for (TaskOperation operation : operations) {
+				if (operationId.equals(operation.getOperationId())) {
+					return true;
+				}
 			}
 		}
 

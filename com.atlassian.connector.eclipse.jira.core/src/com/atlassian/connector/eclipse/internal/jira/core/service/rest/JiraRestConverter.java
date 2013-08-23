@@ -15,6 +15,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -231,8 +232,9 @@ public class JiraRestConverter {
 			}
 		}
 
-		jiraIssue.setCreated(issue.getCreationDate().toDate());
-		jiraIssue.setUpdated(issue.getUpdateDate().toDate());
+		// drop milliseconds due to https://jira.atlassian.com/browse/JRA-34451
+		jiraIssue.setCreated(new Date((issue.getCreationDate().getMillis() / 1000) * 1000));
+		jiraIssue.setUpdated(new Date((issue.getUpdateDate().getMillis() / 1000) * 1000));
 
 		if (project != null && project.getIssueTypeById(issue.getIssueType().getId().toString()) != null) {
 			jiraIssue.setType(project.getIssueTypeById(issue.getIssueType().getId().toString()));
@@ -379,11 +381,11 @@ public class JiraRestConverter {
 			}
 
 		} else {
-			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING, JiraCorePlugin.ID_PLUGIN,
+			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.INFO, JiraCorePlugin.ID_PLUGIN,
 					"Unable to retrieve fields' type information (edit meta). Skipping custom fields parsing.")); //$NON-NLS-1$
 		}
 
-		return new CustomField[0];
+		return null;
 	}
 
 	private static IssueField[] getEditableFieldsFromIssue(Issue issue) {
@@ -473,7 +475,7 @@ public class JiraRestConverter {
 			}
 		} else {
 			StatusHandler.log(new org.eclipse.core.runtime.Status(
-					IStatus.WARNING,
+					IStatus.INFO,
 					JiraCorePlugin.ID_PLUGIN,
 					NLS.bind(
 							"Unable to retrieve 'editmeta' information for issue [{0}]. Skipping editable fields parsing.", issue.getKey()))); //$NON-NLS-1$
@@ -483,7 +485,7 @@ public class JiraRestConverter {
 			return editableFields.toArray(new IssueField[editableFields.size()]);
 		}
 
-		return new IssueField[0];
+		return null;
 	}
 
 	private static CustomField generateCustomField(Field field, String longType) {
@@ -583,8 +585,9 @@ public class JiraRestConverter {
 				}
 			}
 		} else {
-			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.WARNING, JiraCorePlugin.ID_PLUGIN,
-					"Unable to retrieve fields' type information (schema). Skipping searching for Rank.")); //$NON-NLS-1$
+			// skip; schema is not available for issue if it comes from jql bulk call
+//			StatusHandler.log(new org.eclipse.core.runtime.Status(IStatus.INFO, JiraCorePlugin.ID_PLUGIN,
+//					"Unable to retrieve fields' type information (schema). Skipping searching for Rank.")); //$NON-NLS-1$
 		}
 
 		return null;
@@ -808,17 +811,18 @@ public class JiraRestConverter {
 		return outIssueType;
 	}
 
-	public static List<JiraIssue> convertIssues(Iterable<? extends BasicIssue> issues) {
+	public static List<JiraIssue> convertIssues(Iterable<? extends BasicIssue> issues, JiraClientCache cache,
+			String url, IProgressMonitor monitor) throws JiraException {
 		List<JiraIssue> outIssues = new ArrayList<JiraIssue>();
 
 		for (BasicIssue issue : issues) {
-			outIssues.add(convert(issue));
+			outIssues.add(convertIssue((Issue) issue, cache, url, monitor));
 		}
 
 		return outIssues;
 	}
 
-	private static JiraIssue convert(BasicIssue issue) {
+	private static JiraIssue convertBasicIssue(BasicIssue issue) {
 		JiraIssue outIssue = new JiraIssue();
 
 		outIssue.setId(issue.getId().toString());
