@@ -655,7 +655,11 @@ plugin@org.h2,1.1.117=GET,http://download.eclipse.org/tools/orbit/downloads/drop
 
 plugin@org.h2.source,1.1.117=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.h2.source_1.1.117.v20091003-1000.jar
 
-plugin@org.hamcrest,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest_1.1.0.v20090501071000.jar
+!plugin@org.hamcrest,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest_1.1.0.v20090501071000.jar
+plugin@org.hamcrest,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.hamcrest_1.1.0.v20090501071000.jar
+
+plugin@org.mockito,1.8.4=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.mockito_1.8.4.v201102171835.jar
+plugin@org.objenesis,1.0.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.objenesis_1.0.0.v201105211943.jar
 
 plugin@org.hamcrest.core,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.core_1.1.0.v20090501071000.jar
 
