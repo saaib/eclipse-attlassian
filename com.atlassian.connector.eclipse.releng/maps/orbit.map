@@ -481,8 +481,11 @@ plugin@org.apache.commons.lang.source,2.4.0=GET,http://archive.eclipse.org/tools
 plugin@org.apache.commons.lang.source,2.3.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.commons.lang.source_2.3.0.v201005080501.jar
 plugin@org.apache.commons.lang.source,2.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.commons.lang.source_2.1.0.v201005080500.jar
 
-plugin@org.apache.commons.lang,2.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.commons.lang_2.6.0.v201404270220.jar
-plugin@org.apache.commons.lang.source,2.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.commons.lang.source_2.6.0.v201404270220.jar
+plugin@org.apache.commons.lang,2.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson_1.6.0.v201101131530.jar
+plugin@org.apache.commons.lang.source,2.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson.source_1.6.0.v201101131530.jar
+
+plugin@com.google.gson,1.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson_2.1.0.v201303041604.jar
+plugin@com.google.gson.source,1.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson_2.1.0.v201303041604.jar
 
 plugin@org.apache.commons.logging,1.0.4=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.commons.logging_1.0.4.v201005080501.jar
 
