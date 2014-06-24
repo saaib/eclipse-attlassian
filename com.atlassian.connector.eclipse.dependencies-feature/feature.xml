@@ -51,6 +51,7 @@
       <import plugin="org.eclipse.mylyn.commons.core" version="3.3.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.commons.ui" version="3.3.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.commons.xmlrpc" version="3.3.0" match="compatible"/>
+      <import plugin="org.eclipse.mylyn.commons.net" version="3.3.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.commons.identity.core" version="0.9.0" match="greaterOrEqual"/>
       <import plugin="org.eclipse.mylyn.commons.workbench" version="3.7.0" match="compatible"/>
       <import plugin="org.eclipse.mylyn.commons.notifications.core" version="0.9.0" match="greaterOrEqual"/>
@@ -148,6 +149,14 @@
 
    <plugin
          id="org.eclipse.mylyn.commons.xmlrpc"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+         
+         
+   <plugin
+         id="org.eclipse.mylyn.commons.net"
          download-size="0"
          install-size="0"
          version="0.0.0"
