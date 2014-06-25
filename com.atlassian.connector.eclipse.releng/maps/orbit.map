@@ -665,24 +665,20 @@ plugin@org.hamcrest,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/d
 plugin@org.mockito,1.8.4=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.mockito_1.8.4.v201102171835.jar
 plugin@org.objenesis,1.0.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.objenesis_1.0.0.v201105211943.jar
 
-plugin@org.hamcrest.core,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.core_1.1.0.v20090501071000.jar
+plugin@org.hamcrest.core,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.hamcrest.core_1.1.0.v20090501071000.jar
 plugin@org.hamcrest.core.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.core.source_1.1.0.v20090501071000.jar
 
-plugin@org.hamcrest.generator,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.generator_1.1.0.v20090501071000.jar
+plugin@org.hamcrest.generator,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.hamcrest.generator_1.1.0.v20090501071000.jar
+!plugin@org.hamcrest.generator.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.generator.source_1.1.0.v20090501071000.jar
 
-plugin@org.hamcrest.generator.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.generator.source_1.1.0.v20090501071000.jar
+plugin@org.hamcrest.integration,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.hamcrest.integration_1.1.0.v201303031500.jar
+!plugin@org.hamcrest.integration.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.integration.source_1.1.0.v20090501071000.jar
 
-plugin@org.hamcrest.integration,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.integration_1.1.0.v20090501071000.jar
+plugin@org.hamcrest.library,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.hamcrest.library_1.1.0.v20090501071000.jar
+!plugin@org.hamcrest.library.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.library.source_1.1.0.v20090501071000.jar
 
-plugin@org.hamcrest.integration.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.integration.source_1.1.0.v20090501071000.jar
-
-plugin@org.hamcrest.library,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.library_1.1.0.v20090501071000.jar
-
-plugin@org.hamcrest.library.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.library.source_1.1.0.v20090501071000.jar
-
-plugin@org.hamcrest.text,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.text_1.1.0.v20090501071000.jar
-
-plugin@org.hamcrest.text.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.text.source_1.1.0.v20090501071000.jar
+plugin@org.hamcrest.text,1.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.hamcrest.text_1.1.0.v20090501071000.jar
+!plugin@org.hamcrest.text.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.text.source_1.1.0.v20090501071000.jar
 
 plugin@org.jdom,1.0.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.jdom_1.0.0.v201005080400.jar
 
