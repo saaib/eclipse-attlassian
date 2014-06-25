@@ -43,6 +43,7 @@
 			<include name="org.apache.commons.httpclient*.jar"/>
 			<include name="org.apache.commons.lang*.jar"/>
 			<include name="org.apache.commons.logging*.jar"/>
+			<include name="com.google.gson*.jar"/>
 		</fileset>
 
 		<!-- axis -->
