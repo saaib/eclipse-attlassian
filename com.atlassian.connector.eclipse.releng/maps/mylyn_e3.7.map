@@ -200,6 +200,7 @@ plugin@org.eclipse.mylyn.wikitext.twiki.ui=COPY,@buildDirectory@/../../../mylyn/
 plugin@org.eclipse.mylyn.wikitext.ui=COPY,@buildDirectory@/../../../mylyn/org.eclipse.mylyn.docs, org.eclipse.mylyn.wikitext.ui
 
 plugin@org.eclipse.mylyn.wikitext.core.osgi=COPY,@buildDirectory@/../../../mylyn/org.eclipse.mylyn.docs, org.eclipse.mylyn.wikitext.core.osgi
+plugin@org.eclipse.mylyn.wikitext.core.ant=COPY,@buildDirectory@/../../../mylyn/org.eclipse.mylyn.docs, org.eclipse.mylyn.wikitext.core.ant
 
 !plugin@org.eclipse.mylyn.xplanner.core=e_3_7_m_3_6_x,:pserver:anonymous@dev.eclipse.org:/cvsroot/tools,,org.eclipse.mylyn/sandbox/org.eclipse.mylyn.xplanner.core
 !plugin@org.eclipse.mylyn.xplanner.ui=e_3_7_m_3_6_x,:pserver:anonymous@dev.eclipse.org:/cvsroot/tools,,org.eclipse.mylyn/sandbox/org.eclipse.mylyn.xplanner.ui
