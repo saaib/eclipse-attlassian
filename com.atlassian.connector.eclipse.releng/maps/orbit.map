@@ -640,12 +640,11 @@ plugin@org.apache.xerces,2.8.0=GET,http://download.eclipse.org/tools/orbit/downl
 plugin@org.apache.xerces,2.9.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.xerces_2.9.0.v201101211617.jar
 
 plugin@org.apache.xml.resolver,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xml.resolver_1.1.0.v200806030311.jar
-
-plugin@org.apache.xml.resolver,1.2.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xml.resolver_1.2.0.v201005080400.jar
+plugin@org.apache.xml.resolver,1.2.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.xml.resolver_1.2.0.v201005080400.jar
 
 plugin@org.apache.xml.security,1.4.2=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xml.security_1.4.2.v201005080400.jar
 
-plugin@org.apache.xml.serializer,2.7.1=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xml.serializer_2.7.1.v201005080400.jar
+plugin@org.apache.xml.serializer,2.7.1=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.xml.serializer_2.7.1.v201005080400.jar
 
 plugin@org.apache.xmlrpc,3.0.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xmlrpc_3.0.0.v20100427-1100.jar
 
