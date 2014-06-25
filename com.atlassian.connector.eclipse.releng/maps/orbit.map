@@ -486,6 +486,7 @@ plugin@org.apache.commons.lang.source,2.6.0=GET,http://archive.eclipse.org/tools
 
 plugin@com.google.gson,1.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson_1.6.0.v201101131530.jar
 plugin@com.google.gson.source,1.6.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson.source_1.6.0.v201101131530.jar
+
 plugin@com.google.gson,2.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson_2.1.0.v201303041604.jar
 plugin@com.google.gson.source,2.1.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/com.google.gson.source_2.1.0.v201303041604.jar
 
@@ -665,7 +666,6 @@ plugin@org.mockito,1.8.4=GET,http://archive.eclipse.org/tools/orbit/downloads/dr
 plugin@org.objenesis,1.0.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20110523182458/repository/plugins/org.objenesis_1.0.0.v201105211943.jar
 
 plugin@org.hamcrest.core,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.core_1.1.0.v20090501071000.jar
-
 plugin@org.hamcrest.core.source,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.core.source_1.1.0.v20090501071000.jar
 
 plugin@org.hamcrest.generator,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.hamcrest.generator_1.1.0.v20090501071000.jar
