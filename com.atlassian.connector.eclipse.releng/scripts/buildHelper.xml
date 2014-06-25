@@ -33,6 +33,11 @@
 			<contains string="${targets}" substring="3.7" />
 		</not>
 	</condition>
+	<condition property="skip4.4">
+			<not>
+				<contains string="${targets}" substring="4.4" />
+			</not>
+	</condition>
 
 	<target name="for-each-target">
 		<antcall target="e3.3" />
@@ -40,6 +45,7 @@
 		<antcall target="e3.5" />
 		<antcall target="e3.6" />
 		<antcall target="e3.7" />
+		<antcall target="e4.4" />
 	</target>
 
 	<target name="e3.3" unless="skip3.3">
@@ -81,6 +87,14 @@
 			<param name="eclipse.sdk.version" value="${eclipse.sdk.3.7}" />
 		</antcall>
 	</target>
+	
+	<target name="e4.4" unless="skip4.4">
+			<antcall target="${call}">
+				<param name="build.target" value="4.4" />
+				<param name="eclipse.sdk.url" value="${eclipse.url.4.4}" />
+				<param name="eclipse.sdk.version" value="${eclipse.sdk.4.4}" />
+			</antcall>
+		</target>
 
 	<!-- ===================================================================== -->
 	<!-- global properties -->
@@ -918,7 +932,7 @@
 
 		<property name="timeout" value="3600000" />
 		<property name="application" value="org.eclipse.update.core.standaloneUpdate" />
-		<property name="eclipse.sdk.version" value="${eclipse.sdk.3.7}" />
+		<property name="eclipse.sdk.version" value="${eclipse.sdk.4.4}" />
 		<property name="eclipse.home" value="${eclipse.base}/sdk-${eclipse.sdk.version}/eclipse" />
 		<property name="vmargs" value=" -Xms40m -Xmx512m" />
 
