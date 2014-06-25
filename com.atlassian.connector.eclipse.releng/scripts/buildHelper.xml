@@ -274,6 +274,7 @@
 		<mkdir dir="${eclipse.base}/sdk-${eclipse.sdk.version}" />
 
 		<basename property="file.sdk" file="${eclipse.sdk.url}" />
+		<echo message="Getting ${eclipse.sdk.url}/${file.sdk}" />
 		<antcall target="getBundle">
 			<param name="file" value="${file.sdk}" />
 			<param name="url" value="${eclipse.sdk.url}" />
