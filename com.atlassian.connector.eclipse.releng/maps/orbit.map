@@ -637,7 +637,7 @@ plugin@org.apache.xalan,2.7.0=GET,http://download.eclipse.org/tools/orbit/downlo
 
 plugin@org.apache.xerces,2.8.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xerces_2.8.0.v200803070308.jar
 
-plugin@org.apache.xerces,2.9.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xerces_2.9.0.v201005080400.jar
+plugin@org.apache.xerces,2.9.0=GET,http://archive.eclipse.org/tools/orbit/downloads/drops/R20140525021250/repository/plugins/org.apache.xerces_2.9.0.v201101211617.jar
 
 plugin@org.apache.xml.resolver,1.1.0=GET,http://download.eclipse.org/tools/orbit/downloads/drops/R20100519200754/bundles/org.apache.xml.resolver_1.1.0.v200806030311.jar
 
