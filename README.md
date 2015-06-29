@@ -12,3 +12,7 @@ The documentation is also open source and can be updated. You can find the sourc
 
 * [Repository for Atlassian IDE Connector for IntelliJ IDEA](https://bitbucket.org/atlassian/connector-idea)
 * [Repository for Atlassian IDE Connector for Visual Studio](https://bitbucket.org/atlassian/connector-vs)
+
+### License
+
+Eclipse Public License. See https://confluence.atlassian.com/display/IDEPLUGIN/License+and+Copyright+for+the+Eclipse+Connector
